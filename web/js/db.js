@@ -94,6 +94,17 @@ CREATE TABLE IF NOT EXISTS listen_log (
 );
 CREATE INDEX IF NOT EXISTS ix_listen_at ON listen_log(created_at);
 
+CREATE TABLE IF NOT EXISTS story (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  genre TEXT NOT NULL,
+  bible TEXT NOT NULL,                     -- JSON {setting, characters: [{name, description}], premise}
+  summary TEXT NOT NULL DEFAULT '',        -- rolling "story so far", one line per episode
+  level TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  ended_at INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS conversation (
   id INTEGER PRIMARY KEY,
   scenario TEXT NOT NULL,                  -- scenario id or "custom"
@@ -122,6 +133,9 @@ CREATE TABLE IF NOT EXISTS llm_usage (
 function migrate() {
   const cols = (t) => all(`PRAGMA table_info(${t})`).map((c) => c.name);
   if (!cols("item").includes("audio")) db.exec("ALTER TABLE item ADD COLUMN audio TEXT"); // JSON {url, author, license, profile}
+  const textCols = cols("text");
+  if (!textCols.includes("story_id")) db.exec("ALTER TABLE text ADD COLUMN story_id INTEGER REFERENCES story(id) ON DELETE SET NULL");
+  if (!textCols.includes("episode")) db.exec("ALTER TABLE text ADD COLUMN episode INTEGER");
 }
 
 let SQL = null;

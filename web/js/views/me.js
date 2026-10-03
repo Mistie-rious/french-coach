@@ -182,7 +182,7 @@ function exportCsv() {
 
 // ---------- settings ----------
 
-const PURPOSES = { talk: "Conversations", correction: "Corrections", text: "New texts", rewrite: "Rewrites", word: "Ask Claude (words)", grammar: "Explain grammar", prompt: "Writing prompts", test: "Key test", other: "Other" };
+const PURPOSES = { story: "Feuilleton", talk: "Conversations", correction: "Corrections", text: "New texts", rewrite: "Rewrites", word: "Ask Claude (words)", grammar: "Explain grammar", prompt: "Writing prompts", test: "Key test", other: "Other" };
 
 export function settingsView(root) {
   const key = getKey();

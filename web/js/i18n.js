@@ -126,6 +126,11 @@ const EXACT = {
   "Delete this text? Saved words stay.": "Supprimer ce texte ? Les mots gardés restent.",
   "Remove this card from reviews? (You can restore it in My data.)": "Retirer cette carte des révisions ? (Tu peux la remettre dans Mes données.)",
   "English": "English", "Français": "Français",
+  // feuilleton
+  "Start a different story": "Commencer une autre histoire", "Next episode →": "Épisode suivant →", "✨ Next episode": "✨ Épisode suivant",
+  "A story in episodes, written at your level, with the same characters every day. Pick a genre:": "Une histoire en épisodes, à ton niveau, avec les mêmes personnages chaque jour. Choisis un genre :",
+  "Writing episode 1… (~20s)": "Écriture de l'épisode 1… (~20 s)", "Writing the next episode… (~20s)": "Écriture de l'épisode suivant… (~20 s)",
+  "The feuilleton needs a Claude key (Settings)": "Le feuilleton a besoin d'une clé Claude (Réglages)", "Feuilleton": "Feuilleton",
   // hidden labels & placeholders
   "Close": "Fermer", "Play": "Écouter", "Play slowly": "Écouter lentement", "Pronounce": "Prononcer", "Search…": "Rechercher…",
   "Send": "Envoyer", "Speak": "Parler", "Title (optional)": "Titre (facultatif)", "Translate": "Traduire", "Email (optional)": "E-mail (facultatif)",
@@ -159,6 +164,8 @@ const PATTERNS = [
   [/^(\d+) err$/, (m) => `${m[1]} err.`],
   [/^(\d+) (words|verbs|sentences|listening|mistakes|writing)$/, (m) => `${m[1]} ${PLURAL[m[2]]}`],
   [/^(\d+)m$/, (m) => `${m[1]} min`], [/^(\d+)h$/, (m) => `${m[1]} h`], [/^(\d+)d$/, (m) => `${m[1]} j`], [/^(\d+)mo$/, (m) => `${m[1]} mois`],
+  [/^Read episode (\d+) →$/, (m) => `Lire l'épisode ${m[1]} →`],
+  [/^✨ Episode (\d+)$/, (m) => `✨ Épisode ${m[1]}`],
   [/^🔥 (\d+) in a row$/, (m) => `🔥 ${m[1]} d'affilée`],
   [/^of (\d+) saved$/, (m) => `sur ${m[1]} enregistrés`],
   [/^also: (.*)$/, (m) => `aussi : ${m[1]}`],

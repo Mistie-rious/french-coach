@@ -4,6 +4,7 @@ import { todaysPrompt } from "../content.js";
 import { backupDue, reviewedToday, streak, todaysMistakeIds } from "../progress.js";
 import { queue, settings } from "../srs.js";
 import { DAILY_GOAL, listenedToday } from "../listen.js";
+import { nextUnreadEpisode } from "../story.js";
 import { dayStart, html } from "../util.js";
 
 export default function today(root) {
@@ -11,7 +12,8 @@ export default function today(root) {
   const cap = settings().reviewCap;
   const reviewed = reviewedToday();
   const dueNow = queue(cap).length;
-  const unread = get("SELECT id, title FROM text WHERE read_at IS NULL ORDER BY created_at DESC LIMIT 1");
+  const ep = nextUnreadEpisode();
+  const unread = ep ? { id: ep.id, title: `📖 Épisode ${ep.episode} · ${ep.title}` } : get("SELECT id, title FROM text WHERE read_at IS NULL ORDER BY created_at DESC LIMIT 1");
   const readToday = scalar("SELECT COUNT(*) FROM text WHERE read_at >= ?", [start]);
   const wrote = get("SELECT id FROM submission WHERE modality = 'write' AND created_at >= ? ORDER BY created_at DESC LIMIT 1", [start]);
   const mistakeIds = todaysMistakeIds();

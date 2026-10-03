@@ -355,3 +355,33 @@ test("conversation: Claude opens, corrections become logged mistakes and cards",
   assert.equal(sub.raw_text.length + 1 + "Je voudrais aussi ".length, errs[1].start); // offsets continue across messages
   assert.equal(c.messages.at(-1).goalDone, true);
 });
+
+const story = await import("../web/js/story.js");
+
+test("feuilleton: episode 1 creates the story; next episodes get a short recap, not the whole story", async () => {
+  await fresh();
+  const calls = [];
+  const fake = async ({ user, purpose }) => {
+    calls.push({ user, purpose });
+    if (calls.length === 1) return { story_title: "Le mystère du 3e étage", setting: "Lyon today", premise: "A neighbour disappears.", characters: [{ name: "Léa", description: "a curious student" }], title: "Un bruit", body: "Léa entend un bruit.\n\nElle monte au troisième étage.", summary: "Léa entend un bruit bizarre." };
+    return { title: `Épisode ${calls.length}`, body: `Texte ${calls.length}.\n\nFin ${calls.length}.`, summary: `Résumé ${calls.length}.` };
+  };
+  const t1 = await story.startStory("mystery", { claude: fake });
+  const s = story.currentStory();
+  assert.equal(s.title, "Le mystère du 3e étage");
+  assert.equal(story.nextUnreadEpisode().id, t1);
+  db.run("UPDATE text SET read_at = 1 WHERE id = ?", [t1]);
+  assert.equal(story.nextUnreadEpisode(), null);
+
+  for (let i = 0; i < 14; i++) await story.nextEpisode(s.id, { claude: fake });
+  const eps = story.episodes(s.id);
+  assert.equal(eps.length, 15);
+  assert.deepEqual(eps.map((e) => e.episode), Array.from({ length: 15 }, (_, i) => i + 1));
+  const last = calls.at(-1).user;
+  assert.match(last, /Write episode 15/);
+  assert.match(last, /Fin 14\./); // the end of the previous episode is included
+  assert.ok(!last.includes("Texte 2.")); // ...but not old episode texts
+  assert.ok(!last.includes("1. Léa entend")); // the recap is capped to recent episodes
+  assert.equal(calls.every((c) => c.purpose === "story"), true);
+  assert.equal(story.storyOf(eps[3].id).id, s.id);
+});

@@ -481,3 +481,11 @@ table.mini tr:last-child td { border-bottom: 0; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--coral) 25%, transparent); } }
 .summary .fix-line { border-top: 1px solid var(--line); padding-top: 8px; }
 .summary .fix-line p { margin: 2px 0; }
+
+/* ── Feuilleton ── */
+.feuilleton { border-left: 4px solid var(--purple); }
+.feuilleton .big { margin: 2px 0; }
+.feuilleton details summary { color: var(--muted); font-weight: 500; margin-top: 4px; }
+.recap { background: var(--purple-soft); border: 0; box-shadow: none; }
+.recap summary { font: italic 400 1.2rem var(--display); }
+.recap p { margin: 6px 0; font-family: var(--read); font-size: 1rem; }

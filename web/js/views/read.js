@@ -6,6 +6,7 @@ import {
 } from "../content.js";
 import { lemmaCandidates, loadDict, lookup, tokenize } from "../nlp.js";
 import { translate } from "../translate.js";
+import { GENRES, currentStory, endStory, episodes, nextEpisode, startStory, storyOf } from "../story.js";
 import { t } from "../i18n.js";
 import { canSpeak, speakSequence, stopSpeaking } from "../learn.js";
 import { busy, esc, fmtDay, go, html, raw, toast } from "../util.js";
@@ -13,10 +14,27 @@ import { busy, esc, fmtDay, go, html, raw, toast } from "../util.js";
 const LENGTH_LABELS = { short: "Short", medium: "Medium", long: "Long" };
 
 export function readList(root) {
-  const texts = all("SELECT id, title, source, created_at, read_at FROM text ORDER BY created_at DESC LIMIT 100");
+  const texts = all("SELECT id, title, source, episode, created_at, read_at FROM text ORDER BY created_at DESC LIMIT 100");
   const length = kvGet("text_length", "medium");
+  const story = currentStory();
+  const eps = story ? episodes(story.id) : [];
+  const unread = eps.find((e) => !e.read_at);
   root.innerHTML = html`
     <h1>Lire</h1>
+    <div class="card feuilleton">
+      <p class="kind">📖 Le feuilleton</p>
+      ${story ? html`
+        <p class="big">${story.title}</p>
+        <p class="small muted">${GENRES[story.genre]?.emoji || ""} ${GENRES[story.genre]?.fr || ""} · ${eps.length} épisode${eps.length > 1 ? "s" : ""}</p>
+        ${unread ? html`<a class="button wide" href="#/read/${unread.id}">Read episode ${unread.episode} →</a>`
+          : html`<button class="wide" id="next-ep">✨ Episode ${eps.length + 1}</button>`}
+        <details class="small"><summary>Start a different story</summary>
+          <div class="chips" id="genres">${Object.entries(GENRES).map(([k, g]) => html`<button class="chip" data-genre="${k}">${g.emoji} ${g.fr}</button>`)}<button class="chip" data-genre="surprise">🎲 Surprise</button></div>
+        </details>`
+      : html`
+        <p class="small muted">A story in episodes, written at your level, with the same characters every day. Pick a genre:</p>
+        <div class="chips" id="genres">${Object.entries(GENRES).map(([k, g]) => html`<button class="chip" data-genre="${k}">${g.emoji} ${g.fr}</button>`)}<button class="chip" data-genre="surprise">🎲 Surprise</button></div>`}
+    </div>
     <div class="card stack">
       <div class="row gap">
         <label class="grow small muted">Level
@@ -37,11 +55,24 @@ export function readList(root) {
     <ul class="list">
       ${texts.length ? texts.map((t) => html`
         <li><a href="#/read/${t.id}" class="card row between">
-          <span class="grow"><strong>${t.title}</strong><small class="muted">${t.source} · ${fmtDay(t.created_at)}</small></span>
+          <span class="grow"><strong>${t.title}</strong><small class="muted">${t.source === "story" ? `feuilleton · ép. ${t.episode}` : t.source} · ${fmtDay(t.created_at)}</small></span>
           ${t.read_at ? html`<span class="pill ok">read</span>` : html`<span class="pill">new</span>`}
         </a></li>`) : html`<li class="muted">No texts yet.</li>`}
     </ul>`;
 
+  root.querySelector("#genres")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-genre]");
+    if (!b) return;
+    if (!hasKey()) return toast("The feuilleton needs a Claude key (Settings)");
+    busy(b, "Writing episode 1… (~20s)", async () => {
+      if (story) endStory(story.id);
+      go(`#/read/${await startStory(b.dataset.genre)}`);
+    });
+  });
+  root.querySelector("#next-ep")?.addEventListener("click", (e) => {
+    if (!hasKey()) return toast("The feuilleton needs a Claude key (Settings)");
+    busy(e.target, "Writing the next episode… (~20s)", async () => go(`#/read/${await nextEpisode(story.id)}`));
+  });
   root.querySelector("#level").onchange = (e) => kvSet("level", e.target.value);
   root.querySelector("#length").onchange = (e) => kvSet("text_length", e.target.value);
   root.querySelector("#gen").onclick = (e) =>
@@ -71,8 +102,13 @@ export function reader(root, { params: [id] }) {
   let mode = kvGet("reader_mode", "word");
   loadDict();
 
+  const story = doc.story_id ? storyOf(doc.id) : null;
+  const recap = story ? story.summary.split("\n").filter((l) => Number(l.split(".")[0]) < doc.episode) : [];
+  const nextEp = story ? get("SELECT id FROM text WHERE story_id = ? AND episode = ?", [story.id, doc.episode + 1]) : null;
   root.innerHTML = html`
+    ${story ? html`<p class="kind">📖 ${story.title} · Épisode ${doc.episode}</p>` : ""}
     <h1>${doc.title}</h1>
+    ${recap.length ? html`<details class="card recap"><summary>Précédemment…</summary>${recap.slice(-4).map((l) => html`<p class="small">${l.replace(/^\d+\.\s*/, "")}</p>`)}</details>` : ""}
     <div class="row gap wrap reader-bar">
       <div class="segmented" id="mode">
         <button data-mode="word">Word</button><button data-mode="sentence">Sentence</button>
@@ -94,6 +130,7 @@ export function reader(root, { params: [id] }) {
         ${[["easier", "Easier"], ["harder", "Harder"], ["shorter", "Shorter"], ["longer", "Longer"]].map(([k, label]) =>
           html`<button class="secondary" data-rewrite="${k}">${label}</button>`)}
       </div>` : ""}
+    ${story && !story.ended_at ? html`<button class="wide" id="next-episode">${nextEp ? "Next episode →" : "✨ Next episode"}</button>` : ""}
     <div class="row gap">
       <button id="done" class="grow">${doc.read_at ? "Done again ✓" : "Done ✓"}</button>
       <button id="del" class="secondary">Delete</button>
@@ -149,6 +186,12 @@ export function reader(root, { params: [id] }) {
     run("UPDATE text SET read_at = ? WHERE id = ?", [Date.now(), doc.id]);
     go("#/");
   };
+  root.querySelector("#next-episode")?.addEventListener("click", (e) => {
+    run("UPDATE text SET read_at = COALESCE(read_at, ?) WHERE id = ?", [Date.now(), doc.id]);
+    if (nextEp) return go(`#/read/${nextEp.id}`);
+    if (!hasKey()) return toast("The feuilleton needs a Claude key (Settings)");
+    busy(e.target, "Writing the next episode… (~20s)", async () => go(`#/read/${await nextEpisode(story.id)}`));
+  });
   root.querySelector("#del").onclick = () => {
     if (!confirm(t("Delete this text? Saved words stay."))) return;
     run("DELETE FROM text WHERE id = ?", [doc.id]);
