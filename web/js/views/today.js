@@ -39,21 +39,29 @@ export default function today(root) {
     },
   ];
   const n = streak();
+  const hour = new Date().getHours();
+  const greeting = hour < 5 ? "Bonne nuit" : hour < 18 ? "Bonjour" : "Bonsoir";
+  const date = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  const colors = ["c-purple", "c-coral", "c-mustard", "c-sage"];
+  const doneCount = steps.filter((s) => s.done).length;
 
   root.innerHTML = html`
-    <header class="row between">
-      <h1>Aujourd'hui</h1>
-      <span class="pill">🔥 ${n} day${n === 1 ? "" : "s"}</span>
+    <header class="hero">
+      <h1>${greeting} !</h1>
+      <p class="date">${date}</p>
+      <div class="sticker"><div><b>${n}</b><small>jour${n === 1 ? "" : "s"} 🔥</small></div></div>
     </header>
-    ${steps.every((s) => s.done) ? html`<div class="card done-banner">C'est fini pour aujourd'hui. Bravo ! 🎉</div>` : ""}
-    ${backupDue() ? html`<a href="#/data" class="card warn">💾 It's been a while since your last backup. Back up now →</a>` : ""}
+    <div class="progress" aria-label="${doneCount} of 4 done">${steps.map((s) => html`<span class="${s.done ? "on" : ""}"></span>`)}</div>
+    ${doneCount === 4 ? html`<div class="card done-banner">C'est fini pour aujourd'hui. Bravo ! ✨</div>` : ""}
+    ${backupDue() ? html`<a href="#/data" class="card warn">💾 Time for a backup. Your data only lives on this phone →</a>` : ""}
     <ol class="steps">
       ${steps.map((s, i) => html`
         <li class="${s.done ? "done" : ""}">
-          <a href="${s.href}" class="card step">
-            <span class="check">${s.done ? "✓" : i + 1}</span>
+          <a href="${s.href}" class="card step ${colors[i]}">
+            <span class="num">0${i + 1}</span>
             <span class="grow"><strong>${s.title}</strong><small>${s.detail}</small></span>
-            <span class="chev">›</span>
+            ${s.done ? html`<span class="stamp">fait ✓</span>` : ""}
+            <span class="chev">→</span>
           </a>
         </li>`)}
     </ol>

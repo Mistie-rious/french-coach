@@ -1,8 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <clipPath id="r"><rect width="512" height="512" rx="112"/></clipPath>
-  <g clip-path="url(#r)">
-    <rect width="171" height="512" fill="#1d4ed8"/>
-    <rect x="171" width="170" height="512" fill="#ffffff"/>
-    <rect x="341" width="171" height="512" fill="#ef4444"/>
-  </g>
+  <rect width="512" height="512" rx="112" fill="#f6efe3"/>
+  <circle cx="410" cy="102" r="50" fill="#f3b63f" stroke="#1d1a22" stroke-width="6"/>
+  <text x="256" y="330" text-anchor="middle" font-family="Instrument Serif, Georgia, serif" font-style="italic" font-size="320" fill="#1d1a22">fr</text>
+  <path d="M106 390 Q 131 372 156 390 T 206 390 T 256 390 T 306 390 T 356 390 T 406 388" fill="none" stroke="#7b4dff" stroke-width="16" stroke-linecap="round"/>
 </svg>
