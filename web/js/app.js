@@ -7,6 +7,7 @@ import { readList, reader } from "./views/read.js";
 import { write, feedback } from "./views/write.js";
 import { stats, data, settingsView } from "./views/me.js";
 import listen from "./views/listen.js";
+import { talkChat, talkHome } from "./views/talk.js";
 import { learnHub, lessonView, speak, tipsView, verbTable, verbsView, wordsView } from "./views/learn.js";
 import { stopSpeaking } from "./learn.js";
 
@@ -23,7 +24,9 @@ const ROUTES = [
   [/^\/read\/(\d+)$/, reader, "read"],
   [/^\/write$/, write, "write"],
   [/^\/write\/(\d+)$/, feedback, "write"],
-  [/^\/listen$/, listen, "listen"],
+  [/^\/listen$/, listen, "learn"],
+  [/^\/talk$/, talkHome, "talk"],
+  [/^\/talk\/(\d+)$/, talkChat, "talk"],
   [/^\/me$/, stats, "me"],
   [/^\/data$/, data, "me"],
   [/^\/settings$/, settingsView, "me"],

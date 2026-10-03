@@ -49,7 +49,7 @@ export function data(root, { query }) {
   } else if (tab === "mistakes") {
     rows = all(`SELECT * FROM item WHERE kind = 'mistake' AND (? = '' OR front LIKE ? OR back LIKE ? OR category LIKE ?) ORDER BY created_at DESC`, [q, like, like, like]);
   } else {
-    rows = all(`SELECT * FROM submission WHERE (? = '' OR raw_text LIKE ?) ORDER BY created_at DESC`, [q, like]);
+    rows = all(`SELECT * FROM submission WHERE modality = 'write' AND (? = '' OR raw_text LIKE ?) ORDER BY created_at DESC`, [q, like]);
   }
   const lastBackup = kvGet("last_backup_at", 0);
 
@@ -181,7 +181,7 @@ function exportCsv() {
 
 // ---------- settings ----------
 
-const PURPOSES = { correction: "Corrections", text: "New texts", rewrite: "Rewrites", word: "Ask Claude (words)", grammar: "Explain grammar", prompt: "Writing prompts", test: "Key test", other: "Other" };
+const PURPOSES = { talk: "Conversations", correction: "Corrections", text: "New texts", rewrite: "Rewrites", word: "Ask Claude (words)", grammar: "Explain grammar", prompt: "Writing prompts", test: "Key test", other: "Other" };
 
 export function settingsView(root) {
   const key = getKey();

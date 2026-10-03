@@ -13,7 +13,7 @@ export default function today(root) {
   const dueNow = queue(cap).length;
   const unread = get("SELECT id, title FROM text WHERE read_at IS NULL ORDER BY created_at DESC LIMIT 1");
   const readToday = scalar("SELECT COUNT(*) FROM text WHERE read_at >= ?", [start]);
-  const wrote = get("SELECT id FROM submission WHERE created_at >= ? ORDER BY created_at DESC LIMIT 1", [start]);
+  const wrote = get("SELECT id FROM submission WHERE modality = 'write' AND created_at >= ? ORDER BY created_at DESC LIMIT 1", [start]);
   const mistakeIds = todaysMistakeIds();
   const drillLeft = mistakeIds.length ? queue(100, { itemIds: mistakeIds }).length : 0;
 

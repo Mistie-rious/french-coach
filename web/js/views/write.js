@@ -10,7 +10,7 @@ const DRAFT = "draft";
 export function write(root) {
   const p = todaysPrompt();
   const past = all(`SELECT s.id, s.raw_text, s.created_at, COUNT(e.id) AS n FROM submission s
-                    LEFT JOIN error e ON e.submission_id = s.id GROUP BY s.id ORDER BY s.created_at DESC LIMIT 30`);
+                    LEFT JOIN error e ON e.submission_id = s.id WHERE s.modality = 'write' GROUP BY s.id ORDER BY s.created_at DESC LIMIT 30`);
   root.innerHTML = html`
     <h1>Écrire</h1>
     <div class="card prompt">

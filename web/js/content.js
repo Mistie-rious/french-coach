@@ -10,7 +10,7 @@ export { LEVELS };
 export const level = () => kvGet("level", "B1");
 export const shiftLevel = (lv, delta) => LEVELS[Math.min(LEVELS.length - 1, Math.max(0, LEVELS.indexOf(lv) + delta))];
 
-const LEVEL_GUIDE = {
+export const LEVEL_GUIDE = {
   A1: "very short simple sentences, present tense (some passé composé), the 500 most common words, concrete everyday topics",
   A2: "short clear sentences, present, passé composé, futur proche and some imparfait, high-frequency vocabulary",
   B1: "varied sentences, passé composé/imparfait, futur, conditionnel, relative pronouns, some subjonctif",

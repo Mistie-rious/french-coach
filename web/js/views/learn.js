@@ -27,6 +27,8 @@ export async function learnHub(root) {
     <h1>Apprendre</h1>
     <a href="#/review" class="card hub c-purple"><span class="hub-icon">↻</span>
       <span class="grow"><strong>Review</strong><small>${due ? `${due} cards due` : "nothing due right now"}</small></span><span class="chev">→</span></a>
+    <a href="#/listen" class="card hub c-sage"><span class="hub-icon">🎧</span>
+      <span class="grow"><strong>Listening</strong><small>Dictation with native speakers (Tatoeba)</small></span><span class="chev">→</span></a>
     <a href="#/learn/words" class="card hub c-coral"><span class="hub-icon">✚</span>
       <span class="grow"><strong>New words</strong><small>Common ${level()} words and verbs you haven't learned yet · ${learned} saved, ${knownCount()} already known</small></span><span class="chev">→</span></a>
     <a href="#/learn/verbs" class="card hub c-sky"><span class="hub-icon">⇄</span>

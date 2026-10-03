@@ -308,3 +308,50 @@ test("new words skip saved, known and ambiguous forms; mistakes become conj card
   assert.equal(learn.saveConjMistake(qq), a);
   assert.equal(db.get("SELECT back FROM item WHERE id = ?", [a]).back, "nous allions");
 });
+
+const talk = await import("../web/js/talk.js");
+
+test("conversation: Claude opens, corrections become logged mistakes and cards", async () => {
+  await fresh();
+  const calls = [];
+  const fakeClaude = async ({ system, user, purpose }) => {
+    calls.push({ system, user, purpose });
+    if (calls.length === 1) return { reply: "Bonjour ! Qu'est-ce que je vous sers ?", corrections: [], suggestion: "Je voudrais un café, s'il vous plaît.", goal_done: false };
+    return {
+      reply: "Très bien, un café. Autre chose ?",
+      corrections: [
+        { original: "un café noire", suggestion: "un café noir", category: "agreement", explanation: "café is masculine." },
+        { original: "not in the text", suggestion: "x", category: "other", explanation: "hallucinated" },
+      ],
+      suggestion: "Non merci, c'est tout.",
+      goal_done: false,
+    };
+  };
+  const id = talk.startConversation(talk.scenarioById("cafe"), "A2");
+  let c = talk.getConversation(id);
+  await talk.takeTurn(c, null, { claude: fakeClaude });
+  assert.equal(c.messages.length, 1);
+  assert.match(calls[0].system, /waiter/);
+  assert.match(calls[0].system, /A2/);
+  assert.equal(calls[0].purpose, "talk");
+
+  await talk.takeTurn(c, "Je veux un café noire", { claude: fakeClaude });
+  c = talk.getConversation(id); // reload from the database
+  assert.deepEqual(c.messages.map((m) => m.role), ["ai", "me", "ai"]);
+  assert.equal(c.messages[1].corrections.length, 1); // the made-up one was dropped
+  assert.match(calls[1].user, /Learner: Je veux un café noire/);
+
+  const sub = db.get("SELECT * FROM submission WHERE id = ?", [c.submission_id]);
+  assert.equal(sub.modality, "speak");
+  const err = db.get("SELECT * FROM error WHERE submission_id = ?", [sub.id]);
+  assert.equal(sub.raw_text.slice(err.start, err.end), "un café noire");
+  const item = db.get("SELECT * FROM item WHERE kind = 'mistake'");
+  assert.equal(item.front, "Je veux [[un café noire]]");
+  assert.equal(item.back, "Je veux [[un café noir]]");
+  assert.equal(talk.allCorrections(c).length, 1);
+
+  await talk.takeTurn(c, "Je voudrais aussi un croissant", { claude: async () => ({ reply: "D'accord.", corrections: [{ original: "un croissant", suggestion: "un croissant", category: "other", explanation: "x" }], suggestion: "", goal_done: true }) });
+  const errs = db.all("SELECT * FROM error WHERE submission_id = ? ORDER BY id", [c.submission_id]);
+  assert.equal(sub.raw_text.length + 1 + "Je voudrais aussi ".length, errs[1].start); // offsets continue across messages
+  assert.equal(c.messages.at(-1).goalDone, true);
+});

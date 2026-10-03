@@ -94,6 +94,18 @@ CREATE TABLE IF NOT EXISTS listen_log (
 );
 CREATE INDEX IF NOT EXISTS ix_listen_at ON listen_log(created_at);
 
+CREATE TABLE IF NOT EXISTS conversation (
+  id INTEGER PRIMARY KEY,
+  scenario TEXT NOT NULL,                  -- scenario id or "custom"
+  title TEXT NOT NULL,
+  setup TEXT NOT NULL,                     -- JSON: role, setting, goal, register
+  level TEXT NOT NULL,
+  messages TEXT NOT NULL DEFAULT '[]',     -- JSON [{role: "ai"|"me", text, corrections?, suggestion?}]
+  submission_id INTEGER REFERENCES submission(id) ON DELETE SET NULL,  -- where its mistakes are logged
+  created_at INTEGER NOT NULL,
+  ended_at INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS known_word (lemma TEXT PRIMARY KEY, created_at INTEGER NOT NULL); -- "I know it" in New words
 
 CREATE TABLE IF NOT EXISTS llm_usage (

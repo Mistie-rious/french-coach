@@ -1,11 +1,11 @@
 // Offline support: serve app files from cache, refresh them in the background
 // (stale-while-revalidate), so updates show up on the next launch.
-const CACHE = "fc-v10";
+const CACHE = "fc-v11";
 const FILES = [
   "./", "index.html", "app.css", "manifest.webmanifest",
   "js/app.js", "js/util.js", "js/db.js", "js/srs.js", "js/nlp.js", "js/claude.js", "js/correction.js",
-  "js/content.js", "js/progress.js", "js/seed.js", "js/listen.js", "js/translate.js", "js/learn.js", "js/lessons.js",
-  "js/views/today.js", "js/views/review.js", "js/views/read.js", "js/views/write.js", "js/views/me.js", "js/views/listen.js", "js/views/learn.js",
+  "js/content.js", "js/progress.js", "js/seed.js", "js/listen.js", "js/translate.js", "js/learn.js", "js/lessons.js", "js/talk.js",
+  "js/views/today.js", "js/views/review.js", "js/views/read.js", "js/views/write.js", "js/views/me.js", "js/views/listen.js", "js/views/learn.js", "js/views/talk.js",
   "vendor/sql-wasm.js", "vendor/sql-wasm.wasm", "vendor/ts-fsrs.js",
   "dict/fr-en.json", "dict/verbs.json",
   "fonts/instrument-serif-latin-400-normal.woff2", "fonts/instrument-serif-latin-400-italic.woff2",
