@@ -202,3 +202,31 @@ export function stopSpeaking() {
 
 if (typeof speechSynthesis !== "undefined") speechSynthesis.onvoiceschanged = () => (voice = undefined);
 
+
+// ---------- typed answers in Review/Drill ----------
+
+const loose = (s) => norm(s.replace(/[.,!?;:…«»"“”]+/g, " "));
+
+/** Compare a typed answer with the accepted answers: "ok" | "accent" | "wrong". Case and punctuation don't matter. */
+export function checkTyped(accepted, typed) {
+  const t = loose(typed);
+  if (!t) return "wrong";
+  const answers = accepted.map(loose);
+  if (answers.includes(t)) return "ok";
+  if (answers.map(bare).includes(bare(t))) return "accent";
+  return "wrong";
+}
+
+/** Accepted answers for a fix-the-mistake card: the corrected bit, or the whole corrected sentence. */
+export function fixAnswers(back) {
+  const part = back.match(/\[\[(.*?)\]\]/)?.[1];
+  const whole = back.replace(/\[\[|\]\]/g, "");
+  return part != null ? [part, whole] : [whole];
+}
+
+const SUBJECT = /^(?:que |qu')?(?:je |j'|tu |il\/elle |nous |vous |ils\/elles )(?:me |m'|te |t'|se |s'|nous |vous )?/;
+/** Accepted answers for a conjugation card ("nous allions"): with or without the subject, any agreement. */
+export function conjAnswers(back) {
+  const full = acceptable(back);
+  return [...full, ...full.map((f) => f.replace(SUBJECT, ""))];
+}

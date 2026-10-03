@@ -385,3 +385,38 @@ test("feuilleton: episode 1 creates the story; next episodes get a short recap, 
   assert.equal(calls.every((c) => c.purpose === "story"), true);
   assert.equal(story.storyOf(eps[3].id).id, s.id);
 });
+
+test("typed answers in review: fix and conjugation cards", () => {
+  const fix = learn.fixAnswers("Hier, je suis allé au cinéma avec [[mes amies]].");
+  assert.equal(learn.checkTyped(fix, "mes amies"), "ok");
+  assert.equal(learn.checkTyped(fix, "Mes amies."), "ok"); // case/punctuation forgiven
+  assert.equal(learn.checkTyped(fix, "hier, je suis allé au cinéma avec mes amies"), "ok"); // whole sentence also fine
+  assert.equal(learn.checkTyped(fix, "mes amie"), "wrong");
+  assert.equal(learn.checkTyped(learn.fixAnswers("Le film était [[très intéressant]]."), "tres interessant"), "accent");
+  assert.equal(learn.checkTyped(fix, ""), "wrong");
+
+  assert.equal(learn.checkTyped(learn.conjAnswers("nous allions"), "allions"), "ok");
+  assert.equal(learn.checkTyped(learn.conjAnswers("nous allions"), "nous allions"), "ok");
+  assert.equal(learn.checkTyped(learn.conjAnswers("je suis allé(e)"), "suis allée"), "ok");
+  assert.equal(learn.checkTyped(learn.conjAnswers("il/elle s'est levé(e)"), "est levé"), "ok");
+  assert.equal(learn.checkTyped(learn.conjAnswers("qu'il/elle aille"), "aille"), "ok");
+  assert.equal(learn.checkTyped(learn.conjAnswers("vous êtes"), "etes"), "accent");
+  assert.equal(learn.checkTyped(learn.conjAnswers("lève-toi"), "lève-toi"), "ok");
+  assert.equal(learn.checkTyped(learn.conjAnswers("nous allions"), "allons"), "wrong");
+});
+
+test("a card in a short learning step waits behind other due/new cards", async () => {
+  await fresh();
+  const t0 = Date.now();
+  const ids = ["a", "b"].map((w) => {
+    const id = db.run("INSERT INTO item(kind, front, back, created_at) VALUES ('mistake',?,?,?)", [w, w, t0]);
+    srs.addCard(id, "fix", t0);
+    return id;
+  });
+  const [first] = srs.queue(10, { itemIds: ids, at: t0 });
+  srs.review(first.id, 3, t0); // Good -> back in ~10 minutes
+  const q = srs.queue(10, { itemIds: ids, at: t0 + 1000 });
+  assert.equal(q.length, 2);
+  assert.notEqual(q[0].id, first.id); // the other card comes first
+  assert.equal(q[1].id, first.id); // the just-rated one is still in today's session
+});

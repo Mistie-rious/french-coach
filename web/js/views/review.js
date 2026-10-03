@@ -4,6 +4,8 @@ import { reviewedToday, todaysMistakeIds } from "../progress.js";
 import { fmtInterval, go, html, mark } from "../util.js";
 import { t } from "../i18n.js";
 import { credit, playerHtml, wirePlayer } from "./listen.js";
+import { checkTyped, conjAnswers, fixAnswers } from "../learn.js";
+import { compare } from "../listen.js";
 
 export default function reviewView(root, { query }) {
   const drill = query.get("drill") === "1";
@@ -29,6 +31,7 @@ export default function reviewView(root, { query }) {
   }
 
   const p = previews(card);
+  const checkable = card.kind === "mistake" || card.kind === "conj" || card.kind === "dictation";
   const audio = card.audio ? JSON.parse(card.audio) : null;
   const say = (t) => html`<button class="say" data-say="${t.replace(/\[\[|\]\]/g, "")}" aria-label="Pronounce">🔊</button>`;
   const body = card.kind === "conj"
@@ -72,6 +75,7 @@ export default function reviewView(root, { query }) {
     : html`
         <p class="kind">fix the mistake · ${(card.category || "").replace("_", " ")}</p>
         <p class="context">${mark(card.front)}</p>
+        <p class="small muted">Type the correct version of the highlighted part:</p>
         <div class="answer">
           <p class="context good">${mark(card.back)}</p>
           ${card.note ? html`<p class="note">${card.note}</p>` : ""}
@@ -83,7 +87,14 @@ export default function reviewView(root, { query }) {
       <span class="pill">${cards.length} left</span>
     </header>
     <div class="card flash" id="flash">${body}</div>
-    <button id="show" class="wide">Show answer</button>
+    ${checkable ? html`
+      <div class="answer-box" id="answer-box">
+        <input id="typed" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${card.kind === "dictation" ? "Type what you hear…" : "Your answer…"}">
+        <div class="row gap">
+          <button class="grow" id="check">Check</button>
+          <button class="secondary" id="show">I don't know</button>
+        </div>
+      </div>` : html`<button id="show" class="wide">Show answer</button>`}
     <div class="ratings" id="ratings">
       ${[["Again", 1], ["Hard", 2], ["Good", 3], ["Easy", 4]].map(([label, r]) =>
         html`<button data-r="${r}" class="r${r}">${label}<small>${fmtInterval(p[r])}</small></button>`)}
@@ -95,17 +106,56 @@ export default function reviewView(root, { query }) {
   if (audio) wirePlayer(flash, audio.url).play().catch(() => {});
   const show = root.querySelector("#show");
   const ratings = root.querySelector("#ratings");
+  let suggested = null;
   const reveal = () => {
     flash.classList.add("revealed");
     ratings.classList.add("visible");
     show.hidden = true;
+    const box = root.querySelector("#answer-box");
+    if (box) box.hidden = true;
   };
+  // Typed answers: check, show a verdict, and highlight the rating that fits.
+  const typed = root.querySelector("#typed");
+  const check = () => {
+    const answer = typed.value.trim();
+    if (!answer) return typed.focus();
+    let verdict;
+    let detail = "";
+    if (card.kind === "dictation") {
+      const r = compare(card.front, answer);
+      verdict = r.score >= 1 ? "ok" : r.score >= 0.7 ? "accent" : "wrong";
+      detail = html`<p class="context">${r.tokens.map((x) => html`<span class="d-${x.status}">${x.w}</span>${x.w.endsWith("'") ? "" : " "}`)}</p>`;
+    } else {
+      verdict = checkTyped(card.kind === "conj" ? conjAnswers(card.back) : fixAnswers(card.back), answer);
+    }
+    suggested = verdict === "ok" ? 3 : verdict === "accent" ? 2 : 1;
+    const slot = document.createElement("div");
+    flash.querySelector(".answer").before(slot); // verdict first, then the correct answer
+    slot.innerHTML = html`
+      <div class="verdict ${verdict}">
+        <p class="score">${verdict === "ok" ? "Juste !" : verdict === "accent" ? (card.kind === "dictation" ? "Presque !" : "Almost: check the accents") : "Pas tout à fait"}</p>
+        ${verdict !== "ok" ? html`<p class="small">You wrote: <s>${answer}</s></p>` : ""}
+        ${detail}
+      </div>`;
+    reveal();
+    ratings.querySelector(`[data-r="${suggested}"]`)?.classList.add("suggest");
+  };
+  root.querySelector("#check")?.addEventListener("click", check);
+  if (typed) {
+    typed.focus();
+    typed.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        check();
+      }
+    };
+  }
   const rate = (r) => {
     review(card.id, r);
     go(self);
   };
   show.onclick = reveal;
-  flash.onclick = (e) => !e.target.closest("[data-say], a") && reveal();
+  flash.onclick = (e) => !checkable && !e.target.closest("[data-say], a") && reveal();
   ratings.onclick = (e) => {
     const b = e.target.closest("button[data-r]");
     if (b) rate(Number(b.dataset.r));
@@ -117,7 +167,9 @@ export default function reviewView(root, { query }) {
   };
   document.onkeydown = (e) => {
     if (!location.hash.startsWith("#/review")) return (document.onkeydown = null);
+    if (e.target === typed) return;
     if (e.key === " " && !show.hidden) { e.preventDefault(); reveal(); }
+    else if (e.key === "Enter" && suggested) rate(suggested);
     else if ("1234".includes(e.key) && show.hidden) rate(Number(e.key));
   };
 }

@@ -59,14 +59,15 @@ export function queue(limit, { itemIds = null, at = Date.now() } = {}) {
     if (!itemIds.length) return [];
     filter = ` AND item.id IN (${itemIds.map(Number).join(",")})`;
   }
-  const due = all(
-    `${CARD_SQL}${filter} AND card.reps > 0
-     AND ((card.state = 2 AND card.due <= ?) OR (card.state != 2 AND card.due <= ?))
-     ${ORDER}, card.due LIMIT ?`,
-    [at, at + LEARN_AHEAD, limit],
-  );
+  // Order: due now → new → learning steps that are almost due (so a card you just rated
+  // doesn't pop straight back while others are waiting).
+  const due = all(`${CARD_SQL}${filter} AND card.reps > 0 AND card.due <= ? ${ORDER}, card.due LIMIT ?`, [at, limit]);
   let room = limit - due.length;
   if (!itemIds) room = Math.min(room, settings().newPerDay - newReviewedToday(at));
   const fresh = room > 0 ? all(`${CARD_SQL}${filter} AND card.reps = 0 ${ORDER}, card.created_at LIMIT ?`, [room]) : [];
-  return [...due, ...fresh].map((r) => ({ ...r, id: r.card_id }));
+  const left = limit - due.length - fresh.length;
+  const ahead = left > 0
+    ? all(`${CARD_SQL}${filter} AND card.reps > 0 AND card.state != 2 AND card.due > ? AND card.due <= ? ORDER BY card.due LIMIT ?`, [at, at + LEARN_AHEAD, left])
+    : [];
+  return [...due, ...fresh, ...ahead].map((r) => ({ ...r, id: r.card_id }));
 }

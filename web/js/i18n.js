@@ -126,6 +126,9 @@ const EXACT = {
   "Delete this text? Saved words stay.": "Supprimer ce texte ? Les mots gardés restent.",
   "Remove this card from reviews? (You can restore it in My data.)": "Retirer cette carte des révisions ? (Tu peux la remettre dans Mes données.)",
   "English": "English", "Français": "Français",
+  // typed answers in review
+  "Type the correct version of the highlighted part:": "Écris la bonne version de la partie surlignée :", "I don't know": "Je ne sais pas",
+  "Your answer…": "Ta réponse…", "Type what you hear…": "Écris ce que tu entends…", "You wrote:": "Tu as écrit :", "Presque !": "Presque !",
   // feuilleton
   "Start a different story": "Commencer une autre histoire", "Next episode →": "Épisode suivant →", "✨ Next episode": "✨ Épisode suivant",
   "A story in episodes, written at your level, with the same characters every day. Pick a genre:": "Une histoire en épisodes, à ton niveau, avec les mêmes personnages chaque jour. Choisis un genre :",

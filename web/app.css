@@ -489,3 +489,14 @@ table.mini tr:last-child td { border-bottom: 0; }
 .recap { background: var(--purple-soft); border: 0; box-shadow: none; }
 .recap summary { font: italic 400 1.2rem var(--display); }
 .recap p { margin: 6px 0; font-family: var(--read); font-size: 1rem; }
+
+/* ── typed answers in review ── */
+.answer-box { margin-bottom: 14px; }
+.answer-box input { font: 400 1.15rem var(--read); }
+.verdict { border-top: 1px dashed var(--line-strong); margin-top: 14px; padding-top: 10px; }
+.verdict .score { font-size: 1.8rem; margin: 0 0 4px; }
+.verdict.ok .score { color: var(--sage); }
+.verdict.accent .score { color: var(--mustard); }
+.verdict.wrong .score { color: var(--coral); }
+.verdict p { margin: 4px 0; }
+.ratings button.suggest { outline: 3px solid currentColor; outline-offset: 2px; }

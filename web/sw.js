@@ -1,6 +1,6 @@
 // Offline support: serve app files from cache, refresh them in the background
 // (stale-while-revalidate), so updates show up on the next launch.
-const CACHE = "fc-v13";
+const CACHE = "fc-v14";
 const FILES = [
   "./", "index.html", "app.css", "manifest.webmanifest",
   "js/app.js", "js/util.js", "js/db.js", "js/srs.js", "js/nlp.js", "js/claude.js", "js/correction.js",
