@@ -1,4 +1,4 @@
-# Français: personal daily French coach
+# Français: coach
 
 A phone-first web app (installable PWA) for a daily ~20-minute session: **review** (FSRS flashcards) → **read** (tap words to look up and save) → **write** (corrected by LanguageTool + Claude) → **drill** today's mistakes. Every saved word and every mistake becomes a review card.
 
