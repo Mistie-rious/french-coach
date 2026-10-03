@@ -6,7 +6,8 @@ import {
 } from "../content.js";
 import { lemmaCandidates, loadDict, lookup, tokenize } from "../nlp.js";
 import { translate } from "../translate.js";
-import { busy, fmtDay, go, html, toast } from "../util.js";
+import { canSpeak, speakSequence, stopSpeaking } from "../learn.js";
+import { busy, esc, fmtDay, go, html, raw, toast } from "../util.js";
 
 const LENGTH_LABELS = { short: "Short", medium: "Medium", long: "Long" };
 
@@ -71,12 +72,21 @@ export function reader(root, { params: [id] }) {
 
   root.innerHTML = html`
     <h1>${doc.title}</h1>
-    <div class="segmented" id="mode">
-      <button data-mode="word">Word</button><button data-mode="sentence">Sentence</button>
+    <div class="row gap wrap reader-bar">
+      <div class="segmented" id="mode">
+        <button data-mode="word">Word</button><button data-mode="sentence">Sentence</button>
+      </div>
+      ${canSpeak() ? html`<button class="secondary small-btn" id="listen">▶ Listen</button>` : ""}
     </div>
     <p class="muted small" id="hint"></p>
-    <article class="reading">${sentences.map((s, si) => html`<span class="sent${savedSents.has(s.text) ? " saved-sent" : ""}" data-s="${si}">${s.tokens.map((tok) =>
-      tok.w ? html`<span class="w">${tok.t}</span>` : tok.t)}</span>`)}</article>
+    <article class="reading">${sentences.map((s, si) => {
+      // Trailing spaces/line breaks go outside the sentence so highlights don't spill onto blank lines.
+      // (punctuation and the following line break can share one token, e.g. ".\n\n")
+      const tok = (t) => (t.w ? `<span class="w">${esc(t.t)}</span>` : esc(t.t));
+      const inner = s.tokens.map(tok).join("");
+      const body = inner.replace(/\s+$/, "");
+      return html`<span class="sent${savedSents.has(s.text) ? " saved-sent" : ""}" data-s="${si}">${raw(body)}</span>${raw(inner.slice(body.length))}`;
+    })}</article>
     ${hasKey() ? html`
       <p class="small muted">Rewrite this text</p>
       <div class="rewrite">
@@ -102,6 +112,31 @@ export function reader(root, { params: [id] }) {
     close();
   };
   root.querySelector("#mode").onclick = (e) => e.target.dataset.mode && setMode(e.target.dataset.mode);
+
+  // Read the whole text aloud, highlighting each sentence as it's spoken.
+  const listenBtn = root.querySelector("#listen");
+  let playing = false;
+  const stopPlaying = () => {
+    playing = false;
+    stopSpeaking();
+    root.querySelectorAll(".sent.speaking").forEach((x) => x.classList.remove("speaking"));
+    if (listenBtn) listenBtn.textContent = "▶ Listen";
+  };
+  if (listenBtn) listenBtn.onclick = () => {
+    if (playing) return stopPlaying();
+    playing = true;
+    listenBtn.textContent = "■ Stop";
+    const spoken = sentences.map((s, i) => [s.text, i]).filter(([t]) => /\p{L}/u.test(t));
+    speakSequence(spoken.map(([t]) => t), {
+      onStart: (k) => {
+        root.querySelectorAll(".sent.speaking").forEach((x) => x.classList.remove("speaking"));
+        const el = root.querySelector(`.sent[data-s="${spoken[k][1]}"]`);
+        el?.classList.add("speaking");
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
+      onDone: stopPlaying,
+    });
+  };
 
   const markSaved = () =>
     root.querySelectorAll(".w").forEach((el) => {
@@ -164,7 +199,7 @@ export function reader(root, { params: [id] }) {
     const render = () => {
       if (current !== me) return;
       open(html`
-        <p class="context">${sentence}</p>
+        <p class="context">${sentence} <button class="say" data-say="${sentence}" aria-label="Play">🔊</button></p>
         ${translationLine(me)}
         ${me.explain ? html`<ul class="notes">${me.explain.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ""}
         ${me.enError && !me.explain ? html`<input id="m-translation" placeholder="Type your own translation">` : ""}
@@ -194,7 +229,7 @@ export function reader(root, { params: [id] }) {
       if (current !== me) return;
       const g = me.gloss;
       open(html`
-        <p class="big">${word}${g ? html` <span class="accent small">→ ${g.meaning}</span>` : ""}</p>
+        <p class="big">${word} <button class="say" data-say="${word}" aria-label="Play">🔊</button>${g ? html` <span class="accent small">→ ${g.meaning}</span>` : ""}</p>
         ${g ? html`
           <p><strong>${g.lemma}</strong> <small class="muted inline">${g.pos}${g.gender ? ` · ${g.gender}` : ""}</small> — ${g.lemma_meaning}</p>
           ${g.note ? html`<p class="note">${g.note}</p>` : ""}

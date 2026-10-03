@@ -146,11 +146,12 @@ test("writing prompt follows the level and can step easier/harder offline", asyn
   const p = content.todaysPrompt();
   assert.equal(p.level, "A1");
   db.kvSet("level", "B1");
-  assert.equal(content.todaysPrompt().level, "B1"); // level change applies to today's prompt
+  assert.equal(content.todaysPrompt().level, "A2"); // writing starts one level below reading
   const harder = await content.newPrompt("harder", { useClaude: false });
-  assert.equal(harder.level, "B2");
+  assert.equal(harder.level, "B1");
   assert.equal(content.todaysPrompt().text, harder.text); // a chosen prompt sticks for the day
-  assert.equal((await content.newPrompt("easier", { useClaude: false })).level, "B1");
+  assert.equal(content.writeLevel(), "B1"); // ...and the level sticks for future days
+  assert.equal((await content.newPrompt("easier", { useClaude: false })).level, "A2");
   assert.equal(content.shiftLevel("A1", -1), "A1");
 });
 
@@ -194,6 +195,21 @@ test("old databases (and backups) get the new audio column on open", async () =>
 
 const translate = await import("../web/js/translate.js");
 const claude = await import("../web/js/claude.js");
+
+test("long texts are translated in sentence chunks under the API limit", async () => {
+  await fresh();
+  const sent = [];
+  const fake = async (url) => {
+    const q = new URL(url).searchParams.get("q");
+    sent.push(q);
+    return new Response(JSON.stringify({ responseStatus: 200, responseData: { translatedText: `[${q.length}]` } }));
+  };
+  const text = Array.from({ length: 30 }, (_, i) => `Voici la phrase numéro ${i} du texte.`).join(" ");
+  const out = await translate.translateLong(text, { fetchImpl: fake });
+  assert.ok(sent.length > 1 && sent.every((q) => q.length <= 450));
+  assert.equal(sent.join(" ").replace(/\s+/g, " "), text.replace(/\s+/g, " "));
+  assert.equal(out.split(" ").length, sent.length);
+});
 
 test("free translation: decodes entities, caches, and reports the daily limit", async () => {
   await fresh();

@@ -33,3 +33,16 @@ export async function translate(text, { fetchImpl = fetch } = {}) {
   run("INSERT OR REPLACE INTO gloss_cache(key, data) VALUES (?, ?)", [key, JSON.stringify({ en })]);
   return en;
 }
+
+/** Longer texts: translate in chunks of whole sentences (the free API takes ≤500 characters per request). */
+export async function translateLong(text, opts) {
+  const sentences = text.match(/[^.!?…]+(?:[.!?…]+["»”)]*|$)\s*/g) || [text];
+  const chunks = [];
+  for (const s of sentences) {
+    if (chunks.length && (chunks.at(-1) + s).length <= 450) chunks[chunks.length - 1] += s;
+    else chunks.push(s);
+  }
+  const out = [];
+  for (const c of chunks.filter((c) => c.trim())) out.push(await translate(c.trim(), opts));
+  return out.join(" ");
+}

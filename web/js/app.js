@@ -8,6 +8,7 @@ import { write, feedback } from "./views/write.js";
 import { stats, data, settingsView } from "./views/me.js";
 import listen from "./views/listen.js";
 import { learnHub, lessonView, speak, tipsView, verbTable, verbsView, wordsView } from "./views/learn.js";
+import { stopSpeaking } from "./learn.js";
 
 const ROUTES = [
   [/^\/$/, today, "today"],
@@ -37,6 +38,7 @@ async function route() {
   const [re, view, tab] = match;
   document.querySelectorAll(".tabbar a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
   window.scrollTo(0, 0);
+  stopSpeaking(); // don't keep reading a text after leaving it
   try {
     await view(root, { params: path.match(re).slice(1), query: new URLSearchParams(qs) });
   } catch (e) {

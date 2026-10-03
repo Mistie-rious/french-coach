@@ -197,12 +197,15 @@ export const savedSentences = () => new Set(all("SELECT front FROM item WHERE ki
 
 // ---------- writing prompt ----------
 
+/** Writing level: one below the reading level unless changed with Easier/Harder (producing is harder than understanding). */
+export const writeLevel = () => kvGet("write_level", null) ?? shiftLevel(level(), -1);
+
 /** Today's prompt: fixed for the day unless changed with newPrompt(). */
 export function todaysPrompt() {
   const today = localDate();
   const saved = kvGet("prompt_today", null);
-  if (saved?.date === today && (saved.manual || saved.level === level())) return saved;
-  const lv = level();
+  if (saved?.date === today && (saved.manual || saved.level === writeLevel())) return saved;
+  const lv = writeLevel();
   const list = PROMPTS_BY_LEVEL[lv];
   const [y, m, d] = today.split("-").map(Number);
   const p = { date: today, level: lv, text: list[Math.floor(Date.UTC(y, m - 1, d) / 86400000) % list.length] };
@@ -214,6 +217,7 @@ export function todaysPrompt() {
 export async function newPrompt(change, { useClaude = true } = {}) {
   const cur = todaysPrompt();
   const lv = change === "easier" ? shiftLevel(cur.level, -1) : change === "harder" ? shiftLevel(cur.level, 1) : cur.level;
+  if (lv !== cur.level) kvSet("write_level", lv); // Easier/Harder sticks for future days too
   let text;
   if (useClaude) {
     const res = await structured({
@@ -235,3 +239,12 @@ It must be different from: "${cur.text}". Make it about everyday life, opinions 
 }
 
 export const wordTarget = (lv) => WRITE_WORDS[lv];
+
+/** A few sentence starters to get going, by level. */
+export const STARTERS = {
+  A1: ["Je m'appelle…", "J'aime… parce que…", "Le week-end, je…", "Il y a…", "Je n'aime pas…"],
+  A2: ["Hier, j'ai…", "D'abord… ensuite… enfin…", "Quand j'étais petit(e), je…", "Je vais… demain.", "À mon avis, …"],
+  B1: ["À mon avis, …", "D'un côté… de l'autre…", "Ce qui m'a surpris, c'est que…", "Si j'avais le temps, je…", "Par exemple, …"],
+  B2: ["Il est vrai que… cependant…", "Bien que…, …", "Il me semble que…", "En revanche, …", "Pour conclure, …"],
+  C1: ["Force est de constater que…", "Il n'en demeure pas moins que…", "Loin de…, …", "Quoi qu'il en soit, …", "En définitive, …"],
+};

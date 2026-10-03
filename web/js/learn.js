@@ -174,5 +174,31 @@ export function speak(text, rate = 0.9) {
   if (v) u.voice = v;
   speechSynthesis.speak(u);
 }
+/** Read several texts one after another; onStart(i) fires as each begins, onDone when finished or stopped. */
+let seq = 0;
+export function speakSequence(texts, { onStart = () => {}, onDone = () => {}, rate = 0.9 } = {}) {
+  if (!canSpeak()) return onDone();
+  speechSynthesis.cancel();
+  const run = ++seq;
+  const next = (i) => {
+    if (run !== seq) return;
+    if (i >= texts.length) return onDone();
+    const u = new SpeechSynthesisUtterance(texts[i]);
+    u.lang = "fr-FR";
+    u.rate = rate;
+    const v = frenchVoice();
+    if (v) u.voice = v;
+    u.onstart = () => run === seq && onStart(i);
+    u.onend = () => next(i + 1);
+    u.onerror = () => run === seq && onDone();
+    speechSynthesis.speak(u);
+  };
+  next(0);
+}
+export function stopSpeaking() {
+  seq++;
+  if (canSpeak()) speechSynthesis.cancel();
+}
+
 if (typeof speechSynthesis !== "undefined") speechSynthesis.onvoiceschanged = () => (voice = undefined);
 
