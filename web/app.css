@@ -214,3 +214,19 @@ button.danger { color: var(--bad); }
 .dict li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); font-size: 0.92rem; }
 .small-btn { padding: 6px 12px; font-size: 0.85rem; }
 #flash { cursor: pointer; }
+
+/* Reader modes, rewrite, sentences */
+.segmented { display: inline-flex; background: var(--line); border-radius: 10px; padding: 3px; margin-bottom: 4px; }
+.segmented button { background: none; color: var(--muted); padding: 7px 16px; border-radius: 8px; font-size: 0.9rem; }
+.segmented button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.reading .sent { border-radius: 4px; }
+.reading.sentence-mode .sent { cursor: pointer; }
+.reading.sentence-mode .w { cursor: inherit; }
+.reading .sent.sel { background: var(--mark); }
+.reading.sentence-mode .saved-sent { text-decoration: underline 2px var(--accent); text-underline-offset: 4px; }
+.rewrite { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+.rewrite button { padding: 10px 4px; font-size: 0.85rem; }
+.notes { margin: 6px 0 12px; padding-left: 20px; font-size: 0.92rem; }
+.prompt .pill { float: right; }
+.prompt p { margin: 0 0 10px; }
+button:disabled.secondary { opacity: 0.4; }

@@ -1,12 +1,26 @@
-// Reading texts, word lookups, saving words, the daily writing prompt.
-import { structured, hasKey } from "./claude.js";
-import { all, get, kvGet, run, scalar } from "./db.js";
+// Reading texts, word/sentence lookups, saving, writing prompts. Everything adapts to the chosen level.
+import { structured } from "./claude.js";
+import { all, get, kvGet, kvSet, run, scalar } from "./db.js";
 import { addCard } from "./srs.js";
 import { lookup } from "./nlp.js";
-import { BUILTIN_TEXTS, PROMPTS, THEMES } from "./seed.js";
+import { BUILTIN_TEXTS, LEVELS, PROMPTS_BY_LEVEL, THEMES } from "./seed.js";
 import { hashtext, localDate } from "./util.js";
 
+export { LEVELS };
 export const level = () => kvGet("level", "B1");
+export const shiftLevel = (lv, delta) => LEVELS[Math.min(LEVELS.length - 1, Math.max(0, LEVELS.indexOf(lv) + delta))];
+
+const LEVEL_GUIDE = {
+  A1: "very short simple sentences, present tense (some passé composé), the 500 most common words, concrete everyday topics",
+  A2: "short clear sentences, present, passé composé, futur proche and some imparfait, high-frequency vocabulary",
+  B1: "varied sentences, passé composé/imparfait, futur, conditionnel, relative pronouns, some subjonctif",
+  B2: "natural complex sentences, full range of tenses incl. subjonctif and plus-que-parfait, some idioms",
+  C1: "rich, idiomatic, nuanced French as in quality press or literature",
+};
+const BASE_WORDS = { A1: 70, A2: 110, B1: 180, B2: 250, C1: 300 };
+export const LENGTHS = { short: 0.6, medium: 1, long: 1.6 };
+const WRITE_WORDS = { A1: 40, A2: 70, B1: 120, B2: 180, C1: 220 };
+const words = (lv, length = "medium") => Math.round((BASE_WORDS[lv] * (LENGTHS[length] ?? 1)) / 10) * 10;
 
 // ---------- texts ----------
 
@@ -22,24 +36,50 @@ export const learningLemmas = (limit = 8) =>
     [limit],
   ).map((r) => r.lemma);
 
-export async function generateText() {
+const TEXT_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    body: { type: "string", description: "The French text; paragraphs separated by blank lines" },
+  },
+};
+const textSystem = (lv) =>
+  `You write French reading texts for an adult learner at CEFR ${lv}: ${LEVEL_GUIDE[lv]}. Texts are natural and interesting (everyday life, culture, stories, dialogues), never childish.`;
+
+export async function generateText({ length = "medium" } = {}) {
   const lv = level();
   const recent = all("SELECT title FROM text ORDER BY created_at DESC LIMIT 10").map((r) => r.title);
   const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
   const res = await structured({
-    system: `You write short French reading texts for an adult learner at CEFR ${lv}: natural and interesting (everyday life, culture, news-style stories, narratives, dialogues), never childish. Mostly high-frequency vocabulary with varied ${lv} grammar.`,
-    user: `Words I'm learning (use as many as fit naturally, any form): ${learningLemmas().join(", ") || "(none yet)"}
+    system: textSystem(lv),
+    user: `Write a text of about ${words(lv, length)} words.
+Words I'm learning (use those that fit naturally at this level, any form): ${learningLemmas().join(", ") || "(none yet)"}
 Also introduce 3-5 useful new ${lv} words.
 Topic idea: ${theme}. Avoid these recent titles: ${recent.join("; ") || "(none)"}`,
-    schema: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        body: { type: "string", description: "French text, 150-220 words, paragraphs separated by blank lines" },
-      },
-    },
+    schema: TEXT_SCHEMA,
   });
   return addText(res.title, res.body, "claude");
+}
+
+const REWRITES = {
+  easier: (lv) => `Rewrite it one level easier, for a ${shiftLevel(lv, -1)} learner (${LEVEL_GUIDE[shiftLevel(lv, -1)]}). Keep the story and roughly the same length.`,
+  harder: (lv) => `Rewrite it one level harder, for a ${shiftLevel(lv, 1)} learner (${LEVEL_GUIDE[shiftLevel(lv, 1)]}). Keep the story and roughly the same length.`,
+  shorter: () => "Rewrite it about half as long, keeping the main story and the same difficulty.",
+  longer: () => "Rewrite it about 1.5x longer: add detail or a further development, same difficulty.",
+};
+const SUFFIX = { easier: "plus facile", harder: "plus difficile", shorter: "court", longer: "long" };
+
+/** New text that is an easier/harder/shorter/longer version of text `id`. */
+export async function rewriteText(id, change) {
+  const doc = get("SELECT title, body FROM text WHERE id = ?", [id]);
+  const lv = level();
+  const res = await structured({
+    system: textSystem(lv),
+    user: `Here is a French text:\n<<<\n${doc.body}\n>>>\n${REWRITES[change](lv)}`,
+    schema: TEXT_SCHEMA,
+  });
+  const base = doc.title.replace(/ \((plus facile|plus difficile|court|long)\)$/, "");
+  return addText(`${base} (${SUFFIX[change]})`, res.body, "claude");
 }
 
 /** Next unused built-in text (no key / offline). */
@@ -49,7 +89,15 @@ export function nextBuiltinText() {
   return t ? addText(t.title, t.body, "builtin") : null;
 }
 
-// ---------- word lookup ----------
+// ---------- lookups ----------
+
+async function cached(key, fn) {
+  const hit = scalar("SELECT data FROM gloss_cache WHERE key = ?", [key]);
+  if (hit) return JSON.parse(hit);
+  const data = await fn();
+  run("INSERT OR REPLACE INTO gloss_cache(key, data) VALUES (?, ?)", [key, JSON.stringify(data)]);
+  return data;
+}
 
 const GLOSS_SCHEMA = {
   type: "object",
@@ -66,24 +114,38 @@ const GLOSS_SCHEMA = {
   },
 };
 
-/** Contextual gloss from Claude (cached). */
-export async function claudeGloss(word, sentence) {
-  const key = hashtext(`${word}|${sentence}`);
-  const hit = scalar("SELECT data FROM gloss_cache WHERE key = ?", [key]);
-  if (hit) return JSON.parse(hit);
-  const dictHint = lookup(word).slice(0, 3).map((d) => `${d.lemma} (${d.pos}): ${d.gloss}`).join(" | ");
-  const g = await structured({
-    system: "You are a concise French-English learner's dictionary that explains words in context for an intermediate learner.",
-    user: `Word: ${word}\nSentence: ${sentence}\nDictionary hints: ${dictHint || "(none)"}`,
-    schema: GLOSS_SCHEMA,
-    fast: true,
-    maxTokens: 1000,
+/** Contextual word gloss from Claude (cached). */
+export const claudeGloss = (word, sentence) =>
+  cached(hashtext(`w|${word}|${sentence}`), () => {
+    const hint = lookup(word).slice(0, 3).map((d) => `${d.lemma} (${d.pos}): ${d.gloss}`).join(" | ");
+    return structured({
+      system: `You are a concise French-English learner's dictionary explaining words in context for a ${level()} learner.`,
+      user: `Word: ${word}\nSentence: ${sentence}\nDictionary hints: ${hint || "(none)"}`,
+      schema: GLOSS_SCHEMA,
+      fast: true,
+      maxTokens: 1000,
+    });
   });
-  run("INSERT OR REPLACE INTO gloss_cache(key, data) VALUES (?, ?)", [key, JSON.stringify(g)]);
-  return g;
-}
 
-export const canUseClaude = hasKey;
+/** Sentence translation + the grammar/vocab worth noticing (cached). */
+export const explainSentence = (sentence) =>
+  cached(hashtext(`s|${level()}|${sentence}`), () =>
+    structured({
+      system: `You help a ${level()} French learner understand sentences. Be brief and concrete.`,
+      user: `Sentence: ${sentence}`,
+      schema: {
+        type: "object",
+        properties: {
+          translation: { type: "string", description: "Natural English translation" },
+          notes: { type: "array", description: "1-3 short points worth noticing (grammar, idiom, tricky word), in English", items: { type: "string" } },
+        },
+      },
+      fast: true,
+      maxTokens: 1000,
+    }),
+  );
+
+// ---------- saving ----------
 
 function displayLemma(lemma, pos, gender) {
   if (pos?.startsWith("noun") && (gender === "m" || gender === "f")) {
@@ -109,12 +171,58 @@ export function saveWord({ word, sentence, textId, g }) {
   return { itemId, created: true };
 }
 
+/** Save a whole sentence (French -> English card). */
+export function saveSentence({ sentence, translation, notes, textId }) {
+  const existing = get("SELECT id FROM item WHERE kind = 'sentence' AND front = ?", [sentence]);
+  if (existing) return { itemId: existing.id, created: false };
+  const at = Date.now();
+  const itemId = run("INSERT INTO item(kind, front, back, note, text_id, created_at) VALUES ('sentence',?,?,?,?,?)", [
+    sentence, translation, notes || null, textId ?? null, at,
+  ]);
+  addCard(itemId, "recog", at);
+  return { itemId, created: true };
+}
+
 export const savedLemmas = () => new Set(all("SELECT lemma FROM item WHERE kind = 'word'").map((r) => r.lemma));
+export const savedSentences = () => new Set(all("SELECT front FROM item WHERE kind = 'sentence'").map((r) => r.front));
 
 // ---------- writing prompt ----------
 
-export function promptOfTheDay(date = localDate()) {
-  const [y, m, d] = date.split("-").map(Number);
-  const day = Math.floor(Date.UTC(y, m - 1, d) / 86400000);
-  return PROMPTS[day % PROMPTS.length];
+/** Today's prompt: fixed for the day unless changed with newPrompt(). */
+export function todaysPrompt() {
+  const today = localDate();
+  const saved = kvGet("prompt_today", null);
+  if (saved?.date === today && (saved.manual || saved.level === level())) return saved;
+  const lv = level();
+  const list = PROMPTS_BY_LEVEL[lv];
+  const [y, m, d] = today.split("-").map(Number);
+  const p = { date: today, level: lv, text: list[Math.floor(Date.UTC(y, m - 1, d) / 86400000) % list.length] };
+  kvSet("prompt_today", p);
+  return p;
 }
+
+/** Replace today's prompt: change = "easier" | "harder" | "new". Uses Claude if possible, else the built-in lists. */
+export async function newPrompt(change, { useClaude = true } = {}) {
+  const cur = todaysPrompt();
+  const lv = change === "easier" ? shiftLevel(cur.level, -1) : change === "harder" ? shiftLevel(cur.level, 1) : cur.level;
+  let text;
+  if (useClaude) {
+    const res = await structured({
+      system: `You write short writing prompts (in French) for an adult French learner at CEFR ${lv}: ${LEVEL_GUIDE[lv]}.`,
+      user: `Give one new prompt at ${lv} level. Expected answer length: about ${WRITE_WORDS[lv]} words${lv.startsWith("A") ? "; add 2-3 guiding questions" : ""}.
+It must be different from: "${cur.text}". Make it about everyday life, opinions or stories. Write the prompt in simple French${lv.startsWith("A") ? " a beginner can understand" : ""}.`,
+      schema: { type: "object", properties: { prompt: { type: "string" } } },
+      fast: true,
+      maxTokens: 500,
+    });
+    text = res.prompt;
+  } else {
+    const list = PROMPTS_BY_LEVEL[lv].filter((p) => p !== cur.text);
+    text = list[Math.floor(Math.random() * list.length)];
+  }
+  const p = { date: localDate(), level: lv, text, manual: true };
+  kvSet("prompt_today", p);
+  return p;
+}
+
+export const wordTarget = (lv) => WRITE_WORDS[lv];

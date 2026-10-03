@@ -1,5 +1,6 @@
-// Writing correction: LanguageTool finds errors, Claude filters/adds/categorises/explains.
-// Every error becomes a 'mistake' review card. Speak (later) reuses correct() on transcripts.
+// Writing correction. Claude is the corrector; LanguageTool is the fallback when there's
+// no key or Claude fails. Every error becomes a 'mistake' review card.
+// Speak (later) reuses correct() on transcripts.
 import { structured, hasKey, ClaudeError } from "./claude.js";
 import { run, tx } from "./db.js";
 import { addCard } from "./srs.js";
@@ -60,13 +61,12 @@ const SCHEMA = {
   },
 };
 
-const SYSTEM = (level) => `You are a precise French teacher correcting a ${level} learner's writing.
-You get the learner's text and LanguageTool's automatic matches.
-- Keep LanguageTool's real errors; drop false positives and pure style preferences.
-- Add errors it missed: tense/mood choice, prepositions, agreement, unidiomatic phrasing.
-- Fix what a ${level} learner should fix; don't rewrite for elegance. Preserve the meaning.
-- \`original\` must be copied exactly from the learner's text so it can be located.
-- Explanations in English, concise, naming the rule (e.g. "past participle agrees with the subject after être").`;
+const SYSTEM = (level) => `You are a kind, precise French teacher correcting a CEFR ${level} learner's writing.
+- Find every real error: spelling/accents, agreement, gender, conjugation, tense/mood choice, prepositions, articles, word order, and clearly unidiomatic phrasing.
+- Fix what a ${level} learner should fix; don't rewrite for elegance and don't flag correct-but-different choices. Preserve the meaning.
+- \`original\` must be copied exactly from the learner's text so it can be located; keep it as short as possible.
+- Explanations in ${level.startsWith("A") ? "very simple English, one short sentence, with a mini example if helpful" : "concise English naming the rule"}.
+- The summary is encouraging and names the one or two things to focus on.`;
 
 /** Find `needle` in `text`, preferring at/after `from`; tolerant of whitespace/case. */
 export function locate(text, needle, from = 0) {
@@ -94,58 +94,65 @@ export function sentenceSpan(text, offset) {
   return [0, text.length];
 }
 
-/** Run the pipeline and persist. Returns the submission id. */
-export async function correct(text, prompt, { level = "B1", modality = "write", lt = languagetool, claude = structured } = {}) {
-  let matches = [];
-  let ltOk = true;
-  try {
-    matches = await lt(text);
-  } catch (e) {
-    console.warn("LanguageTool failed", e);
-    ltOk = false;
-  }
-
-  let grader, corrected, summary;
+async function withClaude(text, prompt, level, claude) {
+  const res = await claude({
+    system: SYSTEM(level),
+    user: `Prompt: ${prompt || "(free writing)"}\n\nLearner text:\n<<<\n${text}\n>>>`,
+    schema: SCHEMA,
+  });
   const errors = [];
-  try {
-    if (!hasKey() && claude === structured) throw new ClaudeError("no API key");
-    const lines = matches.map((m) => `- "${m.original}" -> "${m.suggestion}" [${m.rule}] ${m.message}`).join("\n") || "(none)";
-    const res = await claude({
-      system: SYSTEM(level),
-      user: `Prompt: ${prompt || "(free writing)"}\n\nLearner text:\n<<<\n${text}\n>>>\n\nLanguageTool matches:\n${lines}`,
-      schema: SCHEMA,
+  let cursor = 0;
+  for (const e of res.errors) {
+    const pos = locate(text, e.original, cursor);
+    if (pos === -1) continue;
+    cursor = pos + e.original.length;
+    errors.push({ start: pos, end: pos + e.original.length, ...e });
+  }
+  return { grader: "claude", corrected: res.corrected_text, summary: res.summary, errors };
+}
+
+async function withLanguageTool(text, lt, why) {
+  const matches = (await lt(text)).filter((m) => m.suggestion);
+  let corrected = text;
+  for (const m of [...matches].sort((a, b) => b.offset - a.offset)) {
+    corrected = corrected.slice(0, m.offset) + m.suggestion + corrected.slice(m.offset + m.length);
+  }
+  return {
+    grader: "lt_only",
+    corrected,
+    summary: `Checked by LanguageTool only (${why}), so explanations are basic and some errors may be missed.`,
+    errors: matches.map((m) => ({
+      start: m.offset, end: m.offset + m.length, original: m.original, suggestion: m.suggestion,
+      category: categoryFromLT(m.rule), explanation: m.message,
+    })),
+  };
+}
+
+/** Correct, persist, and create mistake cards. Returns the submission id. */
+export async function correct(text, prompt, { level = "B1", modality = "write", lt = languagetool, claude = structured, useClaude = hasKey() } = {}) {
+  let result;
+  if (useClaude) {
+    try {
+      result = await withClaude(text, prompt, level, claude);
+    } catch (e) {
+      if (!(e instanceof ClaudeError)) throw e;
+      console.warn("Claude failed, falling back to LanguageTool", e);
+      result = await withLanguageTool(text, lt, e.message).catch(() => {
+        throw new Error(`Couldn't correct right now: ${e.message}, and LanguageTool is unreachable.`);
+      });
+    }
+  } else {
+    result = await withLanguageTool(text, lt, "no Claude key — add one in Settings for better corrections").catch(() => {
+      throw new Error("Couldn't reach LanguageTool. Check your connection and try again.");
     });
-    grader = ltOk ? "lt_claude" : "claude_only";
-    corrected = res.corrected_text;
-    summary = res.summary;
-    let cursor = 0;
-    for (const e of res.errors) {
-      const pos = locate(text, e.original, cursor);
-      if (pos === -1) continue;
-      cursor = pos + e.original.length;
-      errors.push({ start: pos, end: pos + e.original.length, ...e });
-    }
-  } catch (e) {
-    if (!(e instanceof ClaudeError)) throw e;
-    if (!ltOk) throw new Error(`Couldn't correct right now: LanguageTool is unreachable and Claude isn't available (${e.message}).`);
-    grader = "lt_only";
-    summary = hasKey() ? `Checked by LanguageTool only (${e.message}).` : "Checked by LanguageTool only. Add a Claude key in Settings for explanations and better corrections.";
-    corrected = text;
-    const usable = matches.filter((m) => m.suggestion);
-    for (const m of [...usable].sort((a, b) => b.offset - a.offset)) {
-      corrected = corrected.slice(0, m.offset) + m.suggestion + corrected.slice(m.offset + m.length);
-    }
-    for (const m of usable) {
-      errors.push({ start: m.offset, end: m.offset + m.length, original: m.original, suggestion: m.suggestion, category: categoryFromLT(m.rule), explanation: m.message });
-    }
   }
 
   const at = Date.now();
   return tx(() => {
     const subId = run("INSERT INTO submission(modality, prompt, raw_text, corrected_text, summary, grader, created_at) VALUES (?,?,?,?,?,?,?)", [
-      modality, prompt || null, text, corrected, summary, grader, at,
+      modality, prompt || null, text, result.corrected, result.summary, result.grader, at,
     ]);
-    for (const e of errors) {
+    for (const e of result.errors) {
       run("INSERT INTO error(submission_id, start, end, original, suggestion, category, explanation, created_at) VALUES (?,?,?,?,?,?,?,?)", [
         subId, e.start, e.end, e.original, e.suggestion, e.category, e.explanation, at,
       ]);

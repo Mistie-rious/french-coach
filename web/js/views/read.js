@@ -1,14 +1,28 @@
-import { all, get, run } from "../db.js";
+import { all, get, kvGet, kvSet, run } from "../db.js";
 import { hasKey } from "../claude.js";
-import { addText, claudeGloss, generateText, nextBuiltinText, savedLemmas, saveWord } from "../content.js";
+import {
+  LEVELS, addText, claudeGloss, explainSentence, generateText, level, nextBuiltinText, rewriteText,
+  savedLemmas, savedSentences, saveSentence, saveWord,
+} from "../content.js";
 import { lemmaCandidates, loadDict, lookup, tokenize } from "../nlp.js";
 import { busy, fmtDay, go, html, toast } from "../util.js";
 
+const LENGTH_LABELS = { short: "Short", medium: "Medium", long: "Long" };
+
 export function readList(root) {
   const texts = all("SELECT id, title, source, created_at, read_at FROM text ORDER BY created_at DESC LIMIT 100");
+  const length = kvGet("text_length", "medium");
   root.innerHTML = html`
     <h1>Lire</h1>
-    <button id="gen" class="wide">✨ New text at my level</button>
+    <div class="card stack">
+      <div class="row gap">
+        <label class="grow small muted">Level
+          <select id="level">${LEVELS.map((l) => html`<option ${l === level() ? "selected" : ""}>${l}</option>`)}</select></label>
+        <label class="grow small muted">Length
+          <select id="length">${Object.entries(LENGTH_LABELS).map(([k, v]) => html`<option value="${k}" ${k === length ? "selected" : ""}>${v}</option>`)}</select></label>
+      </div>
+      <button id="gen" class="wide">✨ New text</button>
+    </div>
     <details class="card">
       <summary>Paste a French text</summary>
       <div class="stack">
@@ -25,14 +39,16 @@ export function readList(root) {
         </a></li>`) : html`<li class="muted">No texts yet.</li>`}
     </ul>`;
 
+  root.querySelector("#level").onchange = (e) => kvSet("level", e.target.value);
+  root.querySelector("#length").onchange = (e) => kvSet("text_length", e.target.value);
   root.querySelector("#gen").onclick = (e) =>
     busy(e.target, hasKey() ? "Writing your text… (~20s)" : "…", async () => {
       let id;
-      if (hasKey()) id = await generateText();
+      if (hasKey()) id = await generateText({ length: kvGet("text_length", "medium") });
       else {
         id = nextBuiltinText();
         if (!id) throw new Error("No built-in texts left. Add a Claude key in Settings, or paste a text.");
-        toast("Built-in text (add a Claude key for fresh ones)");
+        toast("Built-in text (add a Claude key for texts at your level)");
       }
       go(`#/read/${id}`);
     });
@@ -48,13 +64,24 @@ export function reader(root, { params: [id] }) {
   if (!doc) return go("#/read");
   const sentences = tokenize(doc.body);
   const saved = savedLemmas();
-  loadDict(); // start fetching in the background
+  const savedSents = savedSentences();
+  let mode = kvGet("reader_mode", "word");
+  loadDict();
 
   root.innerHTML = html`
     <h1>${doc.title}</h1>
-    <p class="muted small">Tap a word for its meaning; save it to review.</p>
-    <article class="reading">${sentences.map((s, si) => s.tokens.map((tok) =>
-      tok.w ? html`<span class="w" data-s="${si}">${tok.t}</span>` : tok.t))}</article>
+    <div class="segmented" id="mode">
+      <button data-mode="word">Word</button><button data-mode="sentence">Sentence</button>
+    </div>
+    <p class="muted small" id="hint"></p>
+    <article class="reading">${sentences.map((s, si) => html`<span class="sent${savedSents.has(s.text) ? " saved-sent" : ""}" data-s="${si}">${s.tokens.map((tok) =>
+      tok.w ? html`<span class="w">${tok.t}</span>` : tok.t)}</span>`)}</article>
+    ${hasKey() ? html`
+      <p class="small muted">Rewrite this text</p>
+      <div class="rewrite">
+        ${[["easier", "Easier"], ["harder", "Harder"], ["shorter", "Shorter"], ["longer", "Longer"]].map(([k, label]) =>
+          html`<button class="secondary" data-rewrite="${k}">${label}</button>`)}
+      </div>` : ""}
     <div class="row gap">
       <button id="done" class="grow">${doc.read_at ? "Done again ✓" : "Done ✓"}</button>
       <button id="del" class="secondary">Delete</button>
@@ -64,7 +91,17 @@ export function reader(root, { params: [id] }) {
       <div id="sheet-body"></div>
     </div>`;
 
-  // Underline words whose lemma is already saved (once the dictionary is loaded).
+  const article = root.querySelector(".reading");
+  const setMode = (m) => {
+    mode = m;
+    kvSet("reader_mode", m);
+    root.querySelectorAll("#mode button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+    article.classList.toggle("sentence-mode", m === "sentence");
+    root.querySelector("#hint").textContent = m === "word" ? "Tap a word for its meaning; save it to review." : "Tap a sentence to translate it; save it to review.";
+    close();
+  };
+  root.querySelector("#mode").onclick = (e) => e.target.dataset.mode && setMode(e.target.dataset.mode);
+
   const markSaved = () =>
     root.querySelectorAll(".w").forEach((el) => {
       if (lemmaCandidates(el.textContent).some((l) => saved.has(l))) el.classList.add("saved");
@@ -80,7 +117,11 @@ export function reader(root, { params: [id] }) {
     run("DELETE FROM text WHERE id = ?", [doc.id]);
     go("#/read");
   };
+  root.querySelectorAll("[data-rewrite]").forEach((b) => {
+    b.onclick = () => busy(b, "Rewriting…", async () => go(`#/read/${await rewriteText(doc.id, b.dataset.rewrite)}`));
+  });
 
+  // ---- bottom sheet ----
   const sheet = root.querySelector("#sheet");
   const sheetBody = root.querySelector("#sheet-body");
   let current = null;
@@ -88,25 +129,60 @@ export function reader(root, { params: [id] }) {
     sheetBody.innerHTML = h;
     sheet.hidden = false;
   };
-  const close = () => {
+  function close() {
     sheet.hidden = true;
-    root.querySelectorAll(".w.sel").forEach((x) => x.classList.remove("sel"));
+    root.querySelectorAll(".sel").forEach((x) => x.classList.remove("sel"));
     current = null;
-  };
+  }
   sheet.querySelector(".close").onclick = close;
 
-  root.querySelector(".reading").onclick = async (e) => {
-    const el = e.target.closest(".w");
-    if (!el) return;
-    root.querySelectorAll(".w.sel").forEach((x) => x.classList.remove("sel"));
+  article.onclick = (e) => {
+    if (mode === "sentence") {
+      const s = e.target.closest(".sent");
+      if (s) showSentence(s);
+    } else {
+      const w = e.target.closest(".w");
+      if (w) showWord(w);
+    }
+  };
+
+  async function showSentence(el) {
+    root.querySelectorAll(".sel").forEach((x) => x.classList.remove("sel"));
+    el.classList.add("sel");
+    const sentence = sentences[Number(el.dataset.s)].text;
+    const me = (current = { kind: "sentence", el, sentence, info: null });
+    if (!hasKey()) {
+      open(html`
+        <p class="context">${sentence}</p>
+        <p class="small muted">Add a Claude key in Settings for automatic translations, or type your own:</p>
+        <input id="m-translation" placeholder="English translation">
+        <button class="wide" id="save-sentence">Save sentence</button>`);
+      return;
+    }
+    open(html`<p class="context">${sentence}</p><p class="muted">Translating…</p>`);
+    try {
+      me.info = await explainSentence(sentence);
+      if (current !== me) return;
+      open(html`
+        <p class="context">${sentence}</p>
+        <p class="accent">${me.info.translation}</p>
+        ${me.info.notes.length ? html`<ul class="notes">${me.info.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ""}
+        <button class="wide" id="save-sentence">${savedSents.has(sentence) ? "Saved ✓" : "Save sentence"}</button>`);
+    } catch (err) {
+      if (current === me) open(html`<p class="context">${sentence}</p><p class="small error">${err.message}</p>`);
+    }
+  }
+
+  async function showWord(el) {
+    root.querySelectorAll(".sel").forEach((x) => x.classList.remove("sel"));
     el.classList.add("sel");
     const word = el.textContent;
-    const sentence = sentences[Number(el.dataset.s)].text;
-    const me = (current = { el, word, sentence, gloss: null });
+    const sentence = sentences[Number(el.closest(".sent").dataset.s)].text;
+    const me = (current = { kind: "word", el, word, sentence, gloss: null });
 
     await loadDict().catch(() => {});
     const entries = lookup(word);
-    const renderSheet = (claudePart) => {
+    const render = (claudePart) => {
       if (current !== me) return;
       open(html`
         <p class="big">${word}</p>
@@ -123,47 +199,54 @@ export function reader(root, { params: [id] }) {
           <button class="wide" id="save-manual">Save</button>`}`);
     };
 
-    if (hasKey()) {
-      renderSheet(html`<p class="muted">Asking Claude…</p>`);
-      try {
-        me.gloss = await claudeGloss(word, sentence);
-        const g = me.gloss;
-        renderSheet(html`
-          <p><span class="accent big">${g.meaning}</span></p>
-          <p><strong>${g.lemma}</strong> <small class="muted inline">${g.pos}${g.gender ? ` · ${g.gender}` : ""}</small> — ${g.lemma_meaning}</p>
-          ${g.note ? html`<p class="note">${g.note}</p>` : ""}
-          ${g.example_fr ? html`<p class="small">${g.example_fr}<br><span class="muted">${g.example_en}</span></p>` : ""}
-          <p class="small muted">${g.sentence_en}</p>
-          <button class="wide" id="save-claude">Save to review</button>`);
-      } catch (err) {
-        renderSheet(html`<p class="small error">${err.message}</p>`);
-      }
-    } else {
-      renderSheet("");
+    if (!hasKey()) return render("");
+    render(html`<p class="muted">Asking Claude…</p>`);
+    try {
+      me.gloss = await claudeGloss(word, sentence);
+      const g = me.gloss;
+      render(html`
+        <p><span class="accent big">${g.meaning}</span></p>
+        <p><strong>${g.lemma}</strong> <small class="muted inline">${g.pos}${g.gender ? ` · ${g.gender}` : ""}</small> — ${g.lemma_meaning}</p>
+        ${g.note ? html`<p class="note">${g.note}</p>` : ""}
+        ${g.example_fr ? html`<p class="small">${g.example_fr}<br><span class="muted">${g.example_en}</span></p>` : ""}
+        <p class="small muted">${g.sentence_en}</p>
+        <button class="wide" id="save-claude">Save to review</button>`);
+    } catch (err) {
+      render(html`<p class="small error">${err.message}</p>`);
     }
-  };
+  }
 
   sheetBody.onclick = (e) => {
-    if (!current) return;
     const b = e.target.closest("button");
-    if (!b) return;
-    let g = null;
-    if (b.id === "save-claude") g = current.gloss;
-    else if (b.dataset.saveDict != null) {
-      const d = lookup(current.word)[Number(b.dataset.saveDict)];
-      g = { lemma: d.lemma, pos: d.pos, gender: d.gender, lemma_meaning: d.gloss, example_fr: d.ex_fr, example_en: d.ex_en };
-    } else if (b.id === "save-manual") {
-      const lemma = sheetBody.querySelector("#m-lemma").value.trim();
-      const meaning = sheetBody.querySelector("#m-meaning").value.trim();
-      if (!lemma || !meaning) return;
-      g = { lemma, pos: "", gender: "", lemma_meaning: meaning };
+    if (!b || !current) return;
+    let res;
+    if (b.id === "save-sentence") {
+      const translation = current.info?.translation ?? sheetBody.querySelector("#m-translation")?.value.trim();
+      if (!translation) return;
+      res = saveSentence({ sentence: current.sentence, translation, notes: current.info?.notes.join(" · "), textId: doc.id });
+      savedSents.add(current.sentence);
+      current.el.classList.add("saved-sent");
+    } else {
+      let g = null;
+      if (b.id === "save-claude") g = current.gloss;
+      else if (b.dataset.saveDict != null) {
+        const d = lookup(current.word)[Number(b.dataset.saveDict)];
+        g = { lemma: d.lemma, pos: d.pos, gender: d.gender, lemma_meaning: d.gloss, example_fr: d.ex_fr, example_en: d.ex_en };
+      } else if (b.id === "save-manual") {
+        const lemma = sheetBody.querySelector("#m-lemma").value.trim();
+        const meaning = sheetBody.querySelector("#m-meaning").value.trim();
+        if (!lemma || !meaning) return;
+        g = { lemma, pos: "", gender: "", lemma_meaning: meaning };
+      }
+      if (!g) return;
+      res = saveWord({ word: current.word, sentence: current.sentence, textId: doc.id, g });
+      saved.add(g.lemma);
+      markSaved();
+      current.el.classList.add("saved");
     }
-    if (!g) return;
-    const res = saveWord({ word: current.word, sentence: current.sentence, textId: doc.id, g });
-    saved.add(g.lemma);
-    markSaved();
-    current.el.classList.add("saved");
     b.textContent = res.created ? "Saved ✓" : "Already saved ✓";
     b.disabled = true;
   };
+
+  setMode(mode);
 }

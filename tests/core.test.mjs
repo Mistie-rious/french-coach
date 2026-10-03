@@ -61,7 +61,8 @@ test("correction with Claude creates errors and mistake cards", async () => {
   await fresh();
   const text = "Hier, je suis allé au cinéma avec mes amie. Le film était bien.";
   const id = await correction.correct(text, "p", {
-    lt: async () => [],
+    useClaude: true,
+    lt: async () => { throw new Error("LanguageTool must not be called when Claude works"); },
     claude: async () => ({
       corrected_text: text.replace("mes amie", "mes amies"),
       summary: "ok",
@@ -73,7 +74,7 @@ test("correction with Claude creates errors and mistake cards", async () => {
   const item = db.get("SELECT * FROM item WHERE kind = 'mistake'");
   assert.equal(item.front, "Hier, je suis allé au cinéma avec [[mes amie]].");
   assert.equal(item.back, "Hier, je suis allé au cinéma avec [[mes amies]].");
-  assert.equal(db.scalar("SELECT grader FROM submission"), "lt_claude");
+  assert.equal(db.scalar("SELECT grader FROM submission"), "claude");
   assert.equal(progress.todaysMistakeIds().length, 1);
 });
 
@@ -82,6 +83,7 @@ test("correction falls back to LanguageTool when Claude is unavailable", async (
   const text = "Je suis allé avec mes amie.";
   const { ClaudeError } = await import("../web/js/claude.js");
   const id = await correction.correct(text, null, {
+    useClaude: true,
     lt: async () => [{ offset: 18, length: 8, original: "mes amie", suggestion: "mes amies", message: "Accord", rule: "GRAMMAR/AGREEMENT_X" }],
     claude: async () => { throw new ClaudeError("down"); },
   });
@@ -115,4 +117,39 @@ test("streak counts consecutive active days", async () => {
   const day = 86400000;
   for (const ago of [0, 1, 2, 4]) db.run("INSERT INTO submission(raw_text, grader, created_at) VALUES ('x','lt_only',?)", [Date.now() - ago * day]);
   assert.equal(progress.streak(), 3);
+});
+
+test("without a key, LanguageTool corrects alone", async () => {
+  await fresh();
+  let claudeCalled = false;
+  const id = await correction.correct("Je suis allé avec mes amie.", null, {
+    useClaude: false,
+    lt: async () => [{ offset: 18, length: 8, original: "mes amie", suggestion: "mes amies", message: "Accord", rule: "GRAMMAR/AGREEMENT_X" }],
+    claude: async () => { claudeCalled = true; },
+  });
+  assert.equal(claudeCalled, false);
+  assert.equal(db.get("SELECT grader FROM submission WHERE id = ?", [id]).grader, "lt_only");
+});
+
+test("sentences save as French -> English cards, once", async () => {
+  await fresh();
+  const a = content.saveSentence({ sentence: "Il pleut.", translation: "It's raining.", notes: "impersonal verb", textId: null });
+  const b = content.saveSentence({ sentence: "Il pleut.", translation: "It's raining.", notes: null, textId: null });
+  assert.equal(a.created, true);
+  assert.equal(b.created, false);
+  assert.equal(srs.queue(10).map((c) => c.kind).join(), "sentence");
+});
+
+test("writing prompt follows the level and can step easier/harder offline", async () => {
+  await fresh();
+  db.kvSet("level", "A1");
+  const p = content.todaysPrompt();
+  assert.equal(p.level, "A1");
+  db.kvSet("level", "B1");
+  assert.equal(content.todaysPrompt().level, "B1"); // level change applies to today's prompt
+  const harder = await content.newPrompt("harder", { useClaude: false });
+  assert.equal(harder.level, "B2");
+  assert.equal(content.todaysPrompt().text, harder.text); // a chosen prompt sticks for the day
+  assert.equal((await content.newPrompt("easier", { useClaude: false })).level, "B1");
+  assert.equal(content.shiftLevel("A1", -1), "A1");
 });

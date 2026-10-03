@@ -27,7 +27,15 @@ export default function reviewView(root, { query }) {
   }
 
   const p = previews(card);
-  const body = card.kind === "word"
+  const body = card.kind === "sentence"
+    ? html`
+        <p class="kind">sentence · translate it</p>
+        <p class="context">${card.front}</p>
+        <div class="answer">
+          <p class="context accent">${card.back}</p>
+          ${card.note ? html`<p class="note">${card.note}</p>` : ""}
+        </div>`
+    : card.kind === "word"
     ? html`
         <p class="kind">word</p>
         ${card.context ? html`<p class="context">${mark(card.context)}</p>` : html`<p class="big">${card.front}</p>`}

@@ -1,5 +1,6 @@
 import { all, exportBytes, importBytes, kvGet, kvSet, run, saveNow } from "../db.js";
 import { getKey, setKey, structured } from "../claude.js";
+import { LEVELS } from "../content.js";
 import { stats as getStats } from "../progress.js";
 import { busy, fmtDay, go, html, localDate, mark, toast } from "../util.js";
 
@@ -29,7 +30,7 @@ export function stats(root) {
 
 // ---------- my data ----------
 
-const TABS = { words: "Words", mistakes: "Mistakes", writing: "Writing" };
+const TABS = { words: "Words", sentences: "Sentences", mistakes: "Mistakes", writing: "Writing" };
 
 export function data(root, { query }) {
   const tab = TABS[query.get("tab")] ? query.get("tab") : "words";
@@ -39,6 +40,8 @@ export function data(root, { query }) {
   if (tab === "words") {
     rows = all(`SELECT item.*, card.due, card.state, card.stability FROM item LEFT JOIN card ON card.item_id = item.id
                 WHERE kind = 'word' AND (? = '' OR front LIKE ? OR back LIKE ? OR lemma LIKE ?) ORDER BY item.created_at DESC`, [q, like, like, like]);
+  } else if (tab === "sentences") {
+    rows = all(`SELECT * FROM item WHERE kind = 'sentence' AND (? = '' OR front LIKE ? OR back LIKE ?) ORDER BY created_at DESC`, [q, like, like]);
   } else if (tab === "mistakes") {
     rows = all(`SELECT * FROM item WHERE kind = 'mistake' AND (? = '' OR front LIKE ? OR back LIKE ? OR category LIKE ?) ORDER BY created_at DESC`, [q, like, like, like]);
   } else {
@@ -105,8 +108,10 @@ function itemRow(r) {
     <li class="card data-row ${r.suspended ? "suspended" : ""}" data-id="${r.id}">
       <div class="row between gap">
         <div class="grow">
-          ${r.kind === "word" ? html`<strong>${r.front}</strong> — ${r.back}` : html`<span>${mark(r.front)}</span><br><span class="good">${mark(r.back)}</span>`}
-          <small class="muted">${r.kind === "word" ? (learned ? "known" : r.due ? "learning" : "") : (r.category || "").replace("_", " ")}
+          ${r.kind === "word" ? html`<strong>${r.front}</strong> — ${r.back}`
+            : r.kind === "sentence" ? html`<span>${r.front}</span><br><span class="muted">${r.back}</span>`
+            : html`<span>${mark(r.front)}</span><br><span class="good">${mark(r.back)}</span>`}
+          <small class="muted">${r.kind === "word" ? (learned ? "known" : r.due ? "learning" : "") : r.kind === "sentence" ? "sentence" : (r.category || "").replace("_", " ")}
             ${r.suspended ? " · removed from reviews" : ""} · ${fmtDay(r.created_at)}</small>
         </div>
         <button class="link" data-act="edit">✎</button>
@@ -161,11 +166,13 @@ function download(blob, name) {
 function exportCsv() {
   const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const csv = (rows, cols) => [cols.join(","), ...rows.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n");
+  const sentences = all("SELECT front AS french, back AS english, note, datetime(created_at/1000, 'unixepoch') AS created FROM item WHERE kind = 'sentence' ORDER BY created_at");
   const words = all("SELECT lemma, front, back, context, context_en, note, suspended, datetime(created_at/1000, 'unixepoch') AS created FROM item WHERE kind = 'word' ORDER BY created_at");
   const mistakes = all("SELECT category, front AS wrong, back AS right, note AS explanation, datetime(created_at/1000, 'unixepoch') AS created FROM item WHERE kind = 'mistake' ORDER BY created_at");
   const d = localDate();
   download(new Blob(["﻿" + csv(words, ["lemma", "front", "back", "context", "context_en", "note", "suspended", "created"])], { type: "text/csv" }), `words-${d}.csv`);
   setTimeout(() => download(new Blob(["﻿" + csv(mistakes, ["category", "wrong", "right", "explanation", "created"])], { type: "text/csv" }), `mistakes-${d}.csv`), 500);
+  if (sentences.length) setTimeout(() => download(new Blob(["\ufeff" + csv(sentences, ["french", "english", "note", "created"])], { type: "text/csv" }), `sentences-${d}.csv`), 1000);
 }
 
 // ---------- settings ----------
@@ -185,7 +192,7 @@ export function settingsView(root) {
     </div>
     <div class="card stack">
       <label>Level
-        <select id="level">${["A2", "B1", "B2", "C1"].map((l) => html`<option ${l === kvGet("level", "B1") ? "selected" : ""}>${l}</option>`)}</select>
+        <select id="level">${LEVELS.map((l) => html`<option ${l === kvGet("level", "B1") ? "selected" : ""}>${l}</option>`)}</select>
       </label>
       <label>Warm-up review size<input id="cap" type="number" min="5" max="200" value="${kvGet("review_cap", 20)}"></label>
       <label>New cards per day<input id="newpd" type="number" min="0" max="100" value="${kvGet("new_per_day", 15)}"></label>

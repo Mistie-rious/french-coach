@@ -1,6 +1,6 @@
 import { get, scalar } from "../db.js";
 import { hasKey } from "../claude.js";
-import { promptOfTheDay } from "../content.js";
+import { todaysPrompt } from "../content.js";
 import { backupDue, reviewedToday, streak, todaysMistakeIds } from "../progress.js";
 import { queue, settings } from "../srs.js";
 import { dayStart, html } from "../util.js";
@@ -30,7 +30,7 @@ export default function today(root) {
     {
       title: "Write", href: wrote ? `#/write/${wrote.id}` : "#/write",
       done: !!wrote,
-      detail: promptOfTheDay(),
+      detail: todaysPrompt().text,
     },
     {
       title: "Drill today's mistakes", href: "#/review?drill=1",

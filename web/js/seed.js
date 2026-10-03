@@ -1,6 +1,6 @@
-// Built-in content: writing prompts, text themes, and a few B1 texts (used offline / without a key).
+// Built-in content: writing prompts per level, text themes, and a few B1 texts (used offline / without a key).
 
-export const PROMPTS = [
+const PROMPTS_B1 = [
   "Décris ton week-end : qu'est-ce que tu as fait, avec qui, et qu'est-ce que tu as pensé ?",
   "Raconte une journée typique de ta semaine. Qu'est-ce que tu aimerais changer ?",
   "Raconte un souvenir d'enfance qui t'a marqué(e).",
@@ -32,6 +32,58 @@ export const PROMPTS = [
   "Décris ton logement idéal.",
   "Décris une fête ou une tradition importante dans ta culture."
 ];
+
+const PROMPTS_A1 = [
+  "Présente-toi : ton nom, ton âge, ta ville.",
+  "Décris ta famille.",
+  "Qu'est-ce que tu manges au petit-déjeuner ?",
+  "Décris ta maison ou ton appartement.",
+  "Quel temps fait-il aujourd'hui ?",
+  "Qu'est-ce que tu aimes faire le week-end ?",
+  "Décris ton meilleur ami ou ta meilleure amie.",
+  "Qu'est-ce qu'il y a dans ton sac ?",
+  "Décris ta journée d'aujourd'hui.",
+  "Quelle est ta couleur préférée ? Pourquoi ?",
+  "Qu'est-ce que tu fais le matin ?",
+  "Décris ta ville.",
+  "Quel est ton animal préféré ?",
+  "Qu'est-ce que tu achètes au supermarché ?",
+  "Écris un petit message à un ami pour dire bonjour.",
+];
+
+const PROMPTS_A2 = [
+  "Qu'est-ce que tu as fait hier ?",
+  "Raconte ton dernier week-end.",
+  "Décris ton travail ou tes études.",
+  "Quels sont tes projets pour les vacances ?",
+  "Décris un repas que tu aimes et comment on le prépare.",
+  "Écris un message à un ami pour l'inviter au cinéma.",
+  "Décris ta routine du soir.",
+  "Raconte un bon souvenir de vacances.",
+  "Qu'est-ce que tu fais pour être en forme ?",
+  "Décris ton quartier : qu'est-ce qu'il y a ?",
+  "Quel est ton film ou ta série préféré(e) ? Pourquoi ?",
+  "Qu'est-ce que tu aimais faire quand tu étais enfant ?",
+  "Écris un e-mail pour réserver une table au restaurant.",
+  "Compare ta ville et une autre ville que tu connais.",
+  "Raconte une journée où tout s'est mal passé.",
+];
+
+const PROMPTS_B2 = [
+  "Le travail à distance va-t-il remplacer le bureau ? Argumente.",
+  "Faut-il limiter l'usage des voitures en ville ? Donne des arguments pour et contre.",
+  "Quel rôle l'intelligence artificielle devrait-elle jouer dans l'éducation ?",
+  "Raconte une décision difficile que tu as prise et ce qu'elle t'a appris.",
+  "Le tourisme de masse : chance ou menace pour les villes ?",
+  "Écris une lettre formelle à la mairie pour proposer un projet dans ton quartier.",
+  "Les réseaux sociaux influencent-ils trop la politique ?",
+  "Faut-il travailler moins pour vivre mieux ?",
+  "Critique un livre, un film ou une exposition que tu as découvert récemment.",
+  "Apprendre par l'échec : es-tu d'accord ?",
+];
+
+export const LEVELS = ["A1", "A2", "B1", "B2", "C1"];
+export const PROMPTS_BY_LEVEL = { A1: PROMPTS_A1, A2: PROMPTS_A2, B1: PROMPTS_B1, B2: PROMPTS_B2, C1: PROMPTS_B2 };
 
 export const THEMES = [
   "travel mishap",

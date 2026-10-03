@@ -1,18 +1,27 @@
 import { all, get } from "../db.js";
+import { hasKey } from "../claude.js";
 import { correct } from "../correction.js";
-import { level, promptOfTheDay } from "../content.js";
+import { newPrompt, todaysPrompt, wordTarget } from "../content.js";
 import { busy, fmtDay, go, html } from "../util.js";
 
 const DRAFT = "draft";
 
 export function write(root) {
-  const prompt = promptOfTheDay();
+  const p = todaysPrompt();
   const past = all(`SELECT s.id, s.raw_text, s.created_at, COUNT(e.id) AS n FROM submission s
                     LEFT JOIN error e ON e.submission_id = s.id GROUP BY s.id ORDER BY s.created_at DESC LIMIT 30`);
   root.innerHTML = html`
     <h1>Écrire</h1>
-    <div class="card prompt">${prompt}</div>
-    <textarea id="text" rows="10" placeholder="Écris 80–150 mots…" autocapitalize="sentences" spellcheck="false"></textarea>
+    <div class="card prompt">
+      <span class="pill">${p.level}</span>
+      <p>${p.text}</p>
+      <div class="row gap">
+        <button class="secondary small-btn" data-change="easier" ${p.level === "A1" ? "disabled" : ""}>Easier</button>
+        <button class="secondary small-btn" data-change="harder" ${p.level === "C1" ? "disabled" : ""}>Harder</button>
+        <button class="secondary small-btn" data-change="new">New prompt</button>
+      </div>
+    </div>
+    <textarea id="text" rows="10" placeholder="Écris environ ${wordTarget(p.level)} mots…" autocapitalize="sentences" spellcheck="false"></textarea>
     <div class="row between">
       <small class="muted" id="count">0 mots</small>
       <button id="go">Correct it</button>
@@ -29,24 +38,30 @@ export function write(root) {
   const t = root.querySelector("#text");
   const count = root.querySelector("#count");
   try { t.value = localStorage.getItem(DRAFT) || ""; } catch {}
-  const upd = () => (count.textContent = `${(t.value.match(/\S+/g) || []).length} mots`);
+  const upd = () => (count.textContent = `${(t.value.match(/\S+/g) || []).length} / ~${wordTarget(p.level)} mots`);
   t.oninput = () => {
     upd();
     try { localStorage.setItem(DRAFT, t.value); } catch {}
   };
   upd();
+  root.querySelectorAll("[data-change]").forEach((b) => {
+    b.onclick = () => busy(b, "…", async () => {
+      await newPrompt(b.dataset.change, { useClaude: hasKey() });
+      go("#/write");
+    });
+  });
   root.querySelector("#go").onclick = (e) => {
     const text = t.value.trim();
     if (!text) return;
     busy(e.target, "Correcting… (~20s)", async () => {
-      const id = await correct(text, prompt, { level: level() });
+      const id = await correct(text, p.text, { level: p.level });
       try { localStorage.removeItem(DRAFT); } catch {}
       go(`#/write/${id}`);
     });
   };
 }
 
-const GRADER = { lt_claude: "LanguageTool + Claude", lt_only: "LanguageTool", claude_only: "Claude" };
+const GRADER = { claude: "Claude", lt_claude: "LanguageTool + Claude", lt_only: "LanguageTool", claude_only: "Claude" };
 
 export function feedback(root, { params: [id] }) {
   const sub = get("SELECT * FROM submission WHERE id = ?", [Number(id)]);
