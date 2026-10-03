@@ -6,6 +6,7 @@ import review from "./views/review.js";
 import { readList, reader } from "./views/read.js";
 import { write, feedback } from "./views/write.js";
 import { stats, data, settingsView } from "./views/me.js";
+import listen from "./views/listen.js";
 
 const ROUTES = [
   [/^\/$/, today, "today"],
@@ -14,6 +15,7 @@ const ROUTES = [
   [/^\/read\/(\d+)$/, reader, "read"],
   [/^\/write$/, write, "write"],
   [/^\/write\/(\d+)$/, feedback, "write"],
+  [/^\/listen$/, listen, "listen"],
   [/^\/me$/, stats, "me"],
   [/^\/data$/, data, "me"],
   [/^\/settings$/, settingsView, "me"],

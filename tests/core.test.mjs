@@ -153,3 +153,41 @@ test("writing prompt follows the level and can step easier/harder offline", asyn
   assert.equal((await content.newPrompt("easier", { useClaude: false })).level, "B1");
   assert.equal(content.shiftLevel("A1", -1), "A1");
 });
+
+const listen = await import("../web/js/listen.js");
+
+test("dictation compare: ok / accent / missing / extra words", () => {
+  const r = listen.compare("Elle s'est assise à côté de moi.", "elle sest assise a cote de toi");
+  const st = Object.fromEntries(r.tokens.map((t) => [t.w, t.status]));
+  assert.equal(st["elle"], "ok");
+  assert.equal(st["à"], "accent");
+  assert.equal(st["côté"], "accent");
+  assert.equal(st["moi"], "miss");
+  assert.ok(r.extra.includes("toi"));
+  assert.ok(r.score > 0.3 && r.score < 0.9);
+  assert.equal(listen.compare("Vous avez gagné !", "Vous avez gagné").score, 1);
+  assert.equal(listen.compare("Bonjour.", "").score, 0);
+});
+
+test("imperfect dictation becomes a listening card; perfect one doesn't", async () => {
+  await fresh();
+  const s = { id: 1, text: "Vous avez gagné !", en: "You've won!", audio: { url: "https://tatoeba.org/audio/download/1", author: "x", license: "CC BY 4.0", profile: "" } };
+  assert.equal(listen.recordAttempt(s, "Vous avez gagné", 1).itemId, null);
+  const { itemId } = listen.recordAttempt(s, "vous avez", 0.66);
+  assert.ok(itemId);
+  assert.equal(listen.recordAttempt(s, "vous", 0.33).itemId, itemId); // no duplicate card
+  assert.equal(listen.listenedToday(), 3);
+  const [card] = srs.queue(10);
+  assert.equal(card.kind, "dictation");
+  assert.equal(JSON.parse(card.audio).author, "x");
+});
+
+test("old databases (and backups) get the new audio column on open", async () => {
+  await fresh();
+  db.run("INSERT INTO item(kind, front, back, created_at) VALUES ('word','a','b',1)");
+  db.run("ALTER TABLE item DROP COLUMN audio"); // simulate a pre-Listen database
+  const oldBytes = db.exportBytes();
+  await db.openDb({ locateFile: (f) => new URL(`../web/vendor/${f}`, import.meta.url).pathname, bytes: oldBytes });
+  assert.ok(db.all("PRAGMA table_info(item)").some((c) => c.name === "audio"));
+  assert.equal(db.scalar("SELECT COUNT(*) FROM item"), 1);
+});

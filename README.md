@@ -1,6 +1,6 @@
 # Français: coach
 
-A phone-first web app (installable PWA) for a daily ~20-minute session: **review** (FSRS flashcards) → **read** (tap words to look up and save) → **write** (corrected by LanguageTool + Claude) → **drill** today's mistakes. Every saved word and every mistake becomes a review card.
+A phone-first web app (installable PWA) for a daily ~20-minute session: **review** (FSRS flashcards) → **read** (tap words or sentences to look up and save) → **listen** (dictation with native speakers) → **write** (corrected by LanguageTool + Claude) → **drill** today's mistakes. Every saved word and every mistake becomes a review card.
 
 There's no server. Everything runs in the phone's browser:
 
@@ -37,8 +37,8 @@ web/
   vendor/           sql.js, ts-fsrs
 ```
 
-Later phases fit the schema as-is: Speak = `submission.modality = 'speak'` through `correct()`; Listen = new `item.kind`/`card.template`; DELF grading = `submission.grader`/`score`.
+Later phases fit the schema as-is: Speak = `submission.modality = 'speak'` through `correct()`; DELF grading = `submission.grader`/`score`.
 
 ## Credits
 
-Dictionary: [Wiktionary](https://en.wiktionary.org) via [kaikki.org](https://kaikki.org) (CC BY-SA 4.0). Word frequencies: [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (CC BY-SA 4.0). [sql.js](https://github.com/sql-js/sql.js) (MIT), [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) (MIT).
+Listening: sentences and native-speaker recordings from [Tatoeba](https://tatoeba.org) (sentences CC BY 2.0 FR; each recording's author and licence are shown in the app). Dictionary: [Wiktionary](https://en.wiktionary.org) via [kaikki.org](https://kaikki.org) (CC BY-SA 4.0). Word frequencies: [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (CC BY-SA 4.0). [sql.js](https://github.com/sql-js/sql.js) (MIT), [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) (MIT).

@@ -3,6 +3,7 @@ import { hasKey } from "../claude.js";
 import { todaysPrompt } from "../content.js";
 import { backupDue, reviewedToday, streak, todaysMistakeIds } from "../progress.js";
 import { queue, settings } from "../srs.js";
+import { DAILY_GOAL, listenedToday } from "../listen.js";
 import { dayStart, html } from "../util.js";
 
 export default function today(root) {
@@ -28,6 +29,11 @@ export default function today(root) {
       detail: readToday ? "done" : unread ? unread.title : "pick or generate a text",
     },
     {
+      title: "Listen", href: "#/listen",
+      done: listenedToday() >= DAILY_GOAL,
+      detail: `${Math.min(listenedToday(), DAILY_GOAL)} / ${DAILY_GOAL} sentences`,
+    },
+    {
       title: "Write", href: wrote ? `#/write/${wrote.id}` : "#/write",
       done: !!wrote,
       detail: todaysPrompt().text,
@@ -42,7 +48,7 @@ export default function today(root) {
   const hour = new Date().getHours();
   const greeting = hour < 5 ? "Bonne nuit" : hour < 18 ? "Bonjour" : "Bonsoir";
   const date = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-  const colors = ["c-purple", "c-coral", "c-mustard", "c-sage"];
+  const colors = ["c-purple", "c-coral", "c-sky", "c-mustard", "c-sage"];
   const doneCount = steps.filter((s) => s.done).length;
 
   root.innerHTML = html`
@@ -51,8 +57,8 @@ export default function today(root) {
       <p class="date">${date}</p>
       <div class="sticker"><div><b>${n}</b><small>jour${n === 1 ? "" : "s"} 🔥</small></div></div>
     </header>
-    <div class="progress" aria-label="${doneCount} of 4 done">${steps.map((s) => html`<span class="${s.done ? "on" : ""}"></span>`)}</div>
-    ${doneCount === 4 ? html`<div class="card done-banner">C'est fini pour aujourd'hui. Bravo ! ✨</div>` : ""}
+    <div class="progress" aria-label="${doneCount} of ${steps.length} done">${steps.map((s) => html`<span class="${s.done ? "on" : ""}"></span>`)}</div>
+    ${doneCount === steps.length ? html`<div class="card done-banner">C'est fini pour aujourd'hui. Bravo ! ✨</div>` : ""}
     ${backupDue() ? html`<a href="#/data" class="card warn">💾 Time for a backup. Your data only lives on this phone →</a>` : ""}
     <ol class="steps">
       ${steps.map((s, i) => html`

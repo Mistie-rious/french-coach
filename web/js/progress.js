@@ -8,6 +8,7 @@ export function activeDays() {
   const rows = all(`
     SELECT reviewed_at AS t FROM review_log
     UNION ALL SELECT created_at FROM submission
+    UNION ALL SELECT created_at FROM listen_log
     UNION ALL SELECT read_at FROM text WHERE read_at IS NOT NULL`);
   return new Set(rows.map((r) => localDate(r.t)));
 }

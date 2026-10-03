@@ -8,7 +8,7 @@ const IDB_KEY = "coach.db";
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS item (
   id INTEGER PRIMARY KEY,
-  kind TEXT NOT NULL,              -- word | mistake  (later: cloze, dictation, ...)
+  kind TEXT NOT NULL,              -- word | sentence | mistake | dictation
   lemma TEXT,                      -- word items
   front TEXT NOT NULL,
   back TEXT NOT NULL,
@@ -83,7 +83,23 @@ CREATE INDEX IF NOT EXISTS ix_error_at ON error(created_at);
 
 CREATE TABLE IF NOT EXISTS gloss_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT);
+
+CREATE TABLE IF NOT EXISTS listen_log (
+  id INTEGER PRIMARY KEY,
+  tatoeba_id INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  typed TEXT NOT NULL,
+  score REAL NOT NULL,                     -- 0..1 share of words heard correctly
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_listen_at ON listen_log(created_at);
 `;
+
+/** Additive migrations for databases created by older versions (and old backups). */
+function migrate() {
+  const cols = (t) => all(`PRAGMA table_info(${t})`).map((c) => c.name);
+  if (!cols("item").includes("audio")) db.exec("ALTER TABLE item ADD COLUMN audio TEXT"); // JSON {url, author, license, profile}
+}
 
 let SQL = null;
 let db = null;
@@ -124,6 +140,7 @@ export async function openDb({ locateFile, bytes } = {}) {
   db = new SQL.Database(stored || undefined);
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
+  migrate();
   return db;
 }
 
@@ -193,5 +210,6 @@ export async function importBytes(bytes) {
   db = new SQL.Database(bytes);
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
+  migrate();
   await saveNow();
 }

@@ -2,6 +2,7 @@ import { run } from "../db.js";
 import { previews, queue, review, settings } from "../srs.js";
 import { reviewedToday, todaysMistakeIds } from "../progress.js";
 import { fmtInterval, go, html, mark } from "../util.js";
+import { credit, playerHtml, wirePlayer } from "./listen.js";
 
 export default function reviewView(root, { query }) {
   const drill = query.get("drill") === "1";
@@ -27,7 +28,17 @@ export default function reviewView(root, { query }) {
   }
 
   const p = previews(card);
-  const body = card.kind === "sentence"
+  const audio = card.audio ? JSON.parse(card.audio) : null;
+  const body = card.kind === "dictation"
+    ? html`
+        <p class="kind">listen · what do you hear?</p>
+        ${playerHtml()}
+        <div class="answer">
+          <p class="context">${card.front}</p>
+          <p class="accent">${card.back}</p>
+          ${credit(audio)}
+        </div>`
+    : card.kind === "sentence"
     ? html`
         <p class="kind">sentence · translate it</p>
         <p class="context">${card.front}</p>
@@ -68,6 +79,7 @@ export default function reviewView(root, { query }) {
   `;
 
   const flash = root.querySelector("#flash");
+  if (audio) wirePlayer(flash, audio.url).play().catch(() => {});
   const show = root.querySelector("#show");
   const ratings = root.querySelector("#ratings");
   const reveal = () => {

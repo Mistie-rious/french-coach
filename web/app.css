@@ -18,6 +18,8 @@
   --mustard-soft: #fbeac2;
   --sage: #4f9d74;
   --sage-soft: #d8eee1;
+  --sky: #3f8fd6;
+  --sky-soft: #d9e9f8;
   --mark: #ffe27a;
   --on-accent: #ffffff;
   --shadow: 4px 4px 0 var(--ink);
@@ -41,6 +43,8 @@
     --mustard-soft: #463918;
     --sage: #74c497;
     --sage-soft: #1f3a2b;
+    --sky: #7cbcf2;
+    --sky-soft: #1d2f44;
     --mark: #6b5a12;
     --on-accent: #17141c;
     color-scheme: dark;
@@ -48,6 +52,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -222,6 +227,7 @@ details[open] summary { margin-bottom: 12px; }
 .c-coral { --c: var(--coral); background: var(--coral-soft); }
 .c-mustard { --c: var(--mustard); background: var(--mustard-soft); }
 .c-sage { --c: var(--sage); background: var(--sage-soft); }
+.c-sky { --c: var(--sky); background: var(--sky-soft); }
 @media (prefers-color-scheme: dark) {
   /* dark: neutral cards that glow in their colour instead of muddy tints */
   .step[class*="c-"] { background: var(--card); border-color: var(--c); box-shadow: 4px 4px 0 var(--c); }
@@ -372,3 +378,26 @@ article.reading::first-letter { font: italic 400 3.4rem/0.8 var(--display); floa
   max-width: calc(100% - 32px); box-shadow: 3px 3px 0 var(--purple);
   animation: up 0.2s ease-out;
 }
+
+/* ── Listen ── */
+.player { display: flex; gap: 10px; align-items: center; margin: 4px 0 14px; }
+.player .play {
+  width: 56px; height: 56px; border-radius: 50%; padding: 0;
+  font-size: 1.3rem; background: var(--sky); color: #1d1a22;
+}
+.player.big { justify-content: center; margin: 6px 0 18px; }
+.player.big .play { width: 84px; height: 84px; font-size: 2rem; }
+.player .slow { padding: 9px 14px; font-size: 0.9rem; }
+.listen-card { background: var(--sky-soft); }
+.listen-card textarea { background: var(--card); }
+.credit { font-size: 0.75rem; color: var(--muted); margin: 6px 2px; }
+.credit a { color: inherit; text-decoration: underline; }
+.dictation { border-top: 2px dashed var(--ink); margin-top: 14px; padding-top: 10px; animation: enter 0.25s ease-out; }
+.score { font: italic 400 2.4rem/1 var(--display); margin: 4px 0 8px; }
+.score.perfect, .score.good { color: var(--sage); }
+.score.low { color: var(--coral); }
+.d-ok { color: var(--sage); }
+.d-accent { color: var(--mustard); text-decoration: underline dotted; }
+.d-miss { color: var(--coral); text-decoration: underline 2px; text-underline-offset: 3px; }
+.tabbar a { font-size: 0.62rem; }
+.tabbar svg { width: 21px; height: 21px; }
