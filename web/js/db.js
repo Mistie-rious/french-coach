@@ -93,6 +93,15 @@ CREATE TABLE IF NOT EXISTS listen_log (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_listen_at ON listen_log(created_at);
+
+CREATE TABLE IF NOT EXISTS llm_usage (
+  id INTEGER PRIMARY KEY,
+  purpose TEXT NOT NULL,
+  model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL,
+  output_tokens INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `;
 
 /** Additive migrations for databases created by older versions (and old backups). */

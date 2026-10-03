@@ -5,7 +5,8 @@ A phone-first web app (installable PWA) for a daily ~20-minute session: **review
 There's no server. Everything runs in the phone's browser:
 
 - **Data**: SQLite (sql.js) saved in the browser's IndexedDB. *Me → My data* lets you browse/edit it, export CSV, and back up/restore the `.db` file (opens in any SQLite viewer).
-- **Claude**: called directly from the phone with your own API key (Settings; stored only on the device, never in backups). Sonnet 5.5 writes texts and explains corrections; Haiku 4.5 does word lookups. Roughly $2–3/month.
+- **Claude (Haiku 4.5)**: called directly from the phone with your own API key (Settings; stored only on the device, never in backups). Used for corrections, new texts/rewrites, writing prompts, and the on-demand *Ask Claude* / *Explain grammar* buttons. Settings shows this month's spend. Roughly $1/month.
+- **Translations**: free, via [MyMemory](https://mymemory.translated.net).
 - **Without a key** it still works: built-in texts, offline dictionary, LanguageTool-only corrections.
 - **Hosting**: static files on GitHub Pages ($0).
 

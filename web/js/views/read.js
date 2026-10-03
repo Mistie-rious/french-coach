@@ -1,10 +1,11 @@
 import { all, get, kvGet, kvSet, run } from "../db.js";
 import { hasKey } from "../claude.js";
 import {
-  LEVELS, addText, claudeGloss, explainSentence, generateText, level, nextBuiltinText, prefetchSentences, rewriteText,
+  LEVELS, addText, claudeGloss, explainSentence, generateText, level, nextBuiltinText, rewriteText,
   savedLemmas, savedSentences, saveSentence, saveWord,
 } from "../content.js";
 import { lemmaCandidates, loadDict, lookup, tokenize } from "../nlp.js";
+import { translate } from "../translate.js";
 import { busy, fmtDay, go, html, toast } from "../util.js";
 
 const LENGTH_LABELS = { short: "Short", medium: "Medium", long: "Long" };
@@ -92,7 +93,6 @@ export function reader(root, { params: [id] }) {
     </div>`;
 
   const article = root.querySelector(".reading");
-  if (hasKey()) prefetchSentences(sentences.map((s) => s.text)); // makes sentence taps (near) instant
   const setMode = (m) => {
     mode = m;
     kvSet("reader_mode", m);
@@ -147,103 +147,128 @@ export function reader(root, { params: [id] }) {
     }
   };
 
-  async function showSentence(el) {
+  // Sheet state: what's selected plus whatever we've fetched for it.
+  const select = (el) => {
     root.querySelectorAll(".sel").forEach((x) => x.classList.remove("sel"));
     el.classList.add("sel");
+  };
+  const translationLine = (me) =>
+    me.en ? html`<p class="accent">${me.en}</p>`
+    : me.enError ? html`<p class="small muted">${me.enError}</p>`
+    : html`<p class="loading small">Translating</p>`;
+
+  async function showSentence(el) {
+    select(el);
     const sentence = sentences[Number(el.dataset.s)].text;
-    const me = (current = { kind: "sentence", el, sentence, info: null });
-    if (!hasKey()) {
-      open(html`
-        <p class="context">${sentence}</p>
-        <p class="small muted">Add a Claude key in Settings for automatic translations, or type your own:</p>
-        <input id="m-translation" placeholder="English translation">
-        <button class="wide" id="save-sentence">Save sentence</button>`);
-      return;
-    }
-    open(html`<p class="context">${sentence}</p><p class="muted">Translating…</p>`);
-    try {
-      me.info = await explainSentence(sentence);
+    const me = (current = { kind: "sentence", el, sentence, en: null, enError: null, explain: null, explaining: false });
+    const render = () => {
       if (current !== me) return;
       open(html`
         <p class="context">${sentence}</p>
-        <p class="accent">${me.info.translation}</p>
-        ${me.info.notes.length ? html`<ul class="notes">${me.info.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ""}
-        <button class="wide" id="save-sentence">${savedSents.has(sentence) ? "Saved ✓" : "Save sentence"}</button>`);
+        ${translationLine(me)}
+        ${me.explain ? html`<ul class="notes">${me.explain.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ""}
+        ${me.enError && !me.explain ? html`<input id="m-translation" placeholder="Type your own translation">` : ""}
+        <div class="row gap">
+          <button class="grow" id="save-sentence" ${savedSents.has(sentence) ? "disabled" : ""}>${savedSents.has(sentence) ? "Saved ✓" : "Save sentence"}</button>
+          ${hasKey() && !me.explain ? html`<button class="secondary" id="explain">${me.explaining ? "…" : "✦ Explain grammar"}</button>` : ""}
+        </div>`);
+    };
+    me.render = render;
+    render();
+    try {
+      me.en = await translate(sentence);
     } catch (err) {
-      if (current === me) open(html`<p class="context">${sentence}</p><p class="small error">${err.message}</p>`);
+      me.enError = err.message;
     }
+    render();
   }
 
   async function showWord(el) {
-    root.querySelectorAll(".sel").forEach((x) => x.classList.remove("sel"));
-    el.classList.add("sel");
+    select(el);
     const word = el.textContent;
     const sentence = sentences[Number(el.closest(".sent").dataset.s)].text;
-    const me = (current = { kind: "word", el, word, sentence, gloss: null });
-
+    const me = (current = { kind: "word", el, word, sentence, en: null, enError: null, gloss: null, asking: false });
     await loadDict().catch(() => {});
     const entries = lookup(word);
-    const render = (claudePart) => {
+    const render = () => {
       if (current !== me) return;
+      const g = me.gloss;
       open(html`
-        <p class="big">${word}</p>
-        ${claudePart}
+        <p class="big">${word}${g ? html` <span class="accent small">→ ${g.meaning}</span>` : ""}</p>
+        ${g ? html`
+          <p><strong>${g.lemma}</strong> <small class="muted inline">${g.pos}${g.gender ? ` · ${g.gender}` : ""}</small> — ${g.lemma_meaning}</p>
+          ${g.note ? html`<p class="note">${g.note}</p>` : ""}
+          <button class="wide" id="save-claude">Save to review</button>` : ""}
         ${entries.length ? html`
-          <p class="small muted">Dictionary</p>
           <ul class="dict">${entries.slice(0, 4).map((d, i) => html`
             <li><span class="grow"><strong>${d.lemma}</strong> <small class="muted inline">${d.pos}${d.gender ? ` · ${d.gender}` : ""}</small> — ${d.gloss}</span>
             <button class="small-btn" data-save-dict="${i}">Save</button></li>`)}</ul>`
-          : me.gloss ? "" : html`
-          <p class="small muted">Not in the offline dictionary. Add it yourself:</p>
+          : g ? "" : html`
+          <p class="small muted">Not in the offline dictionary${hasKey() ? " (try Ask Claude)" : ""}, or add it yourself:</p>
           <input id="m-lemma" value="${lemmaCandidates(word)[0]}" placeholder="dictionary form">
           <input id="m-meaning" placeholder="meaning in English">
-          <button class="wide" id="save-manual">Save</button>`}`);
+          <button class="wide" id="save-manual">Save</button>`}
+        <p class="small muted">${me.en || (me.enError ? "" : "…")}</p>
+        ${hasKey() && !g ? html`<button class="secondary wide" id="ask">${me.asking ? "Asking Claude…" : "✦ Ask Claude (meaning in this sentence)"}</button>` : ""}`);
     };
-
-    if (!hasKey()) return render("");
-    render(html`<p class="muted">Asking Claude…</p>`);
-    try {
-      me.gloss = await claudeGloss(word, sentence);
-      const g = me.gloss;
-      render(html`
-        <p><span class="accent big">${g.meaning}</span></p>
-        <p><strong>${g.lemma}</strong> <small class="muted inline">${g.pos}${g.gender ? ` · ${g.gender}` : ""}</small> — ${g.lemma_meaning}</p>
-        ${g.note ? html`<p class="note">${g.note}</p>` : ""}
-        ${g.example_fr ? html`<p class="small">${g.example_fr}<br><span class="muted">${g.example_en}</span></p>` : ""}
-        ${g.sentence_en ? html`<p class="small muted">${g.sentence_en}</p>` : ""}
-        <button class="wide" id="save-claude">Save to review</button>`);
-    } catch (err) {
-      render(html`<p class="small error">${err.message}</p>`);
-    }
+    me.render = render;
+    render();
+    translate(sentence).then((en) => (me.en = en), (err) => (me.enError = err.message)).then(render);
   }
 
-  sheetBody.onclick = (e) => {
+  sheetBody.onclick = async (e) => {
     const b = e.target.closest("button");
     if (!b || !current) return;
+    const me = current;
+    if (b.id === "explain") {
+      if (me.explaining) return;
+      me.explaining = true;
+      me.render();
+      try {
+        me.explain = await explainSentence(me.sentence);
+        me.en ??= me.explain.translation;
+      } catch (err) {
+        toast(err.message, 4000);
+      }
+      me.explaining = false;
+      return me.render();
+    }
+    if (b.id === "ask") {
+      if (me.asking) return;
+      me.asking = true;
+      me.render();
+      try {
+        me.gloss = await claudeGloss(me.word, me.sentence);
+      } catch (err) {
+        toast(err.message, 4000);
+      }
+      me.asking = false;
+      return me.render();
+    }
     let res;
     if (b.id === "save-sentence") {
-      const translation = current.info?.translation ?? sheetBody.querySelector("#m-translation")?.value.trim();
-      if (!translation) return;
-      res = saveSentence({ sentence: current.sentence, translation, notes: current.info?.notes.join(" · "), textId: doc.id });
-      savedSents.add(current.sentence);
-      current.el.classList.add("saved-sent");
+      const translation = me.en || me.explain?.translation || sheetBody.querySelector("#m-translation")?.value.trim();
+      if (!translation) return toast("Add a translation first");
+      res = saveSentence({ sentence: me.sentence, translation, notes: me.explain?.notes.join(" · "), textId: doc.id });
+      savedSents.add(me.sentence);
+      me.el.classList.add("saved-sent");
     } else {
       let g = null;
-      if (b.id === "save-claude") g = current.gloss;
+      if (b.id === "save-claude") g = { ...me.gloss, sentence_en: me.en };
       else if (b.dataset.saveDict != null) {
-        const d = lookup(current.word)[Number(b.dataset.saveDict)];
-        g = { lemma: d.lemma, pos: d.pos, gender: d.gender, lemma_meaning: d.gloss, example_fr: d.ex_fr, example_en: d.ex_en };
+        const d = lookup(me.word)[Number(b.dataset.saveDict)];
+        g = { lemma: d.lemma, pos: d.pos, gender: d.gender, lemma_meaning: d.gloss, example_fr: d.ex_fr, example_en: d.ex_en, sentence_en: me.en };
       } else if (b.id === "save-manual") {
         const lemma = sheetBody.querySelector("#m-lemma").value.trim();
         const meaning = sheetBody.querySelector("#m-meaning").value.trim();
         if (!lemma || !meaning) return;
-        g = { lemma, pos: "", gender: "", lemma_meaning: meaning };
+        g = { lemma, pos: "", gender: "", lemma_meaning: meaning, sentence_en: me.en };
       }
       if (!g) return;
-      res = saveWord({ word: current.word, sentence: current.sentence, textId: doc.id, g });
+      res = saveWord({ word: me.word, sentence: me.sentence, textId: doc.id, g });
       saved.add(g.lemma);
       markSaved();
-      current.el.classList.add("saved");
+      me.el.classList.add("saved");
     }
     b.textContent = res.created ? "Saved ✓" : "Already saved ✓";
     b.disabled = true;

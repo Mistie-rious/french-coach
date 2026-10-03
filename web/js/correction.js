@@ -99,6 +99,8 @@ async function withClaude(text, prompt, level, claude) {
     system: SYSTEM(level),
     user: `Prompt: ${prompt || "(free writing)"}\n\nLearner text:\n<<<\n${text}\n>>>`,
     schema: SCHEMA,
+    purpose: "correction",
+    maxTokens: 6000,
   });
   const errors = [];
   let cursor = 0;

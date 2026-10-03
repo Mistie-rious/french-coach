@@ -57,6 +57,7 @@ Words I'm learning (use those that fit naturally at this level, any form): ${lea
 Also introduce 3-5 useful new ${lv} words.
 Topic idea: ${theme}. Avoid these recent titles: ${recent.join("; ") || "(none)"}`,
     schema: TEXT_SCHEMA,
+    purpose: "text",
   });
   return addText(res.title, res.body, "claude");
 }
@@ -77,6 +78,7 @@ export async function rewriteText(id, change) {
     system: textSystem(lv),
     user: `Here is a French text:\n<<<\n${doc.body}\n>>>\n${REWRITES[change](lv)}`,
     schema: TEXT_SCHEMA,
+    purpose: "rewrite",
   });
   const base = doc.title.replace(/ \((plus facile|plus difficile|court|long)\)$/, "");
   return addText(`${base} (${SUFFIX[change]})`, res.body, "claude");
@@ -110,7 +112,7 @@ const GLOSS_SCHEMA = {
   },
 };
 
-/** Contextual word gloss from Claude (cached). Adds the sentence translation if we already have it. */
+/** Contextual word gloss from Claude (cached). Only called from the "Ask Claude" button. */
 export async function claudeGloss(word, sentence) {
   const key = hashtext(`w2|${word}|${sentence}`);
   let g = cacheGet(key);
@@ -120,70 +122,35 @@ export async function claudeGloss(word, sentence) {
       system: `Terse French-English learner's dictionary for a ${level()} learner. Explain the word as used in the sentence.`,
       user: `Word: ${word}\nSentence: ${sentence}\nDictionary hints: ${hint || "(none)"}`,
       schema: GLOSS_SCHEMA,
-      fast: true,
+      purpose: "word",
       maxTokens: 400,
     });
     cacheSet(key, g);
   }
-  const s = cacheGet(sentenceKey(sentence));
-  return { ...g, sentence_en: s?.translation || "" };
+  return g;
 }
 
-// ---------- sentence translations (prefetched per text) ----------
+// ---------- grammar explanations (on demand) ----------
 
-const SENTENCE_SYSTEM = () => `You help a ${level()} French learner understand sentences. Translate naturally into English and add at most 2 very short notes (grammar, idiom, tricky word) only where useful.`;
-const NOTE_ITEM = { type: "array", items: { type: "string" }, description: "0-2 short notes in English, max 12 words each" };
-const sentenceKey = (sentence) => hashtext(`s|${level()}|${sentence}`);
-const inflight = new Map(); // sentence -> Promise<{translation, notes}|null>
-
-/** Translate all of a text's sentences in the background (one request per ~25 sentences). */
-export function prefetchSentences(sentences) {
-  const todo = [...new Set(sentences)].filter((s) => /\p{L}/u.test(s) && !inflight.has(s) && !cacheGet(sentenceKey(s)));
-  for (let i = 0; i < todo.length; i += 25) {
-    const chunk = todo.slice(i, i + 25);
-    const req = structured({
-      system: SENTENCE_SYSTEM(),
-      user: chunk.map((s, n) => `${n + 1}. ${s}`).join("\n"),
-      schema: {
-        type: "object",
-        properties: {
-          items: {
-            type: "array",
-            description: "One entry per numbered sentence, same order",
-            items: { type: "object", properties: { n: { type: "integer" }, translation: { type: "string" }, notes: NOTE_ITEM } },
-          },
-        },
-      },
-      fast: true,
-      maxTokens: 8000,
-    }).then((res) => {
-      for (const it of res.items) {
-        const s = chunk[it.n - 1];
-        if (s) cacheSet(sentenceKey(s), { translation: it.translation, notes: it.notes });
-      }
-    });
-    for (const s of chunk) {
-      inflight.set(s, req.then(() => cacheGet(sentenceKey(s)), () => null).finally(() => inflight.delete(s)));
-    }
-  }
-}
-
-/** Sentence translation + notes: from cache, from a running prefetch, or a direct request. */
+/** Claude's explanation of a sentence: translation + up to 3 notes. Only called from the "Explain grammar" button. */
 export async function explainSentence(sentence) {
-  const hit = cacheGet(sentenceKey(sentence));
+  const key = hashtext(`g|${level()}|${sentence}`);
+  const hit = cacheGet(key);
   if (hit) return hit;
-  if (inflight.has(sentence)) {
-    const r = await inflight.get(sentence);
-    if (r) return r;
-  }
   const res = await structured({
-    system: SENTENCE_SYSTEM(),
+    system: `You help a ${level()} French learner understand a sentence. Translate it naturally, then explain the 1-3 things most worth noticing (grammar, tense/mood, idiom, tricky word). Short, concrete, in English.`,
     user: sentence,
-    schema: { type: "object", properties: { translation: { type: "string" }, notes: NOTE_ITEM } },
-    fast: true,
-    maxTokens: 500,
+    schema: {
+      type: "object",
+      properties: {
+        translation: { type: "string" },
+        notes: { type: "array", items: { type: "string" }, description: "1-3 notes, max 20 words each" },
+      },
+    },
+    purpose: "grammar",
+    maxTokens: 600,
   });
-  cacheSet(sentenceKey(sentence), res);
+  cacheSet(key, res);
   return res;
 }
 
@@ -254,7 +221,7 @@ export async function newPrompt(change, { useClaude = true } = {}) {
       user: `Give one new prompt at ${lv} level. Expected answer length: about ${WRITE_WORDS[lv]} words${lv.startsWith("A") ? "; add 2-3 guiding questions" : ""}.
 It must be different from: "${cur.text}". Make it about everyday life, opinions or stories. Write the prompt in simple French${lv.startsWith("A") ? " a beginner can understand" : ""}.`,
       schema: { type: "object", properties: { prompt: { type: "string" } } },
-      fast: true,
+      purpose: "prompt",
       maxTokens: 500,
     });
     text = res.prompt;

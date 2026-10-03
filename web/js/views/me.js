@@ -1,5 +1,5 @@
 import { all, exportBytes, importBytes, kvGet, kvSet, run, saveNow } from "../db.js";
-import { getKey, setKey, structured } from "../claude.js";
+import { getKey, setKey, structured, usageSince } from "../claude.js";
 import { LEVELS } from "../content.js";
 import { stats as getStats } from "../progress.js";
 import { busy, fmtDay, getTheme, go, html, localDate, mark, setTheme, toast } from "../util.js";
@@ -179,8 +179,13 @@ function exportCsv() {
 
 // ---------- settings ----------
 
+const PURPOSES = { correction: "Corrections", text: "New texts", rewrite: "Rewrites", word: "Ask Claude (words)", grammar: "Explain grammar", prompt: "Writing prompts", test: "Key test", other: "Other" };
+
 export function settingsView(root) {
   const key = getKey();
+  const now = new Date();
+  const month = usageSince(new Date(now.getFullYear(), now.getMonth(), 1).getTime());
+  const money = (x) => (x < 0.01 && x > 0 ? "<$0.01" : `$${x.toFixed(2)}`);
   root.innerHTML = html`
     <h1>Settings</h1>
     <div class="card stack">
@@ -204,6 +209,19 @@ export function settingsView(root) {
       <label>Warm-up review size<input id="cap" type="number" min="5" max="200" value="${kvGet("review_cap", 20)}"></label>
       <label>New cards per day<input id="newpd" type="number" min="0" max="100" value="${kvGet("new_per_day", 15)}"></label>
       <button id="save-prefs">Save</button>
+    </div>
+    <div class="card stack">
+      <div class="row between"><strong>Claude this month</strong><strong class="accent">${money(month.total)}</strong></div>
+      ${month.rows.length ? html`<div>${month.rows.map((r) => html`
+        <div class="row between small"><span>${PURPOSES[r.purpose] || r.purpose} <span class="muted">× ${r.calls}</span></span><span>${money(r.cost)}</span></div>`)}</div>`
+        : html`<p class="small muted">No Claude calls yet this month.</p>`}
+      <p class="small muted">Estimated from token counts at Haiku 4.5 prices. Your Anthropic Console shows the exact bill.</p>
+    </div>
+    <div class="card stack">
+      <strong>Free translations</strong>
+      <p class="small muted">Sentence translations come from MyMemory (free, no key): about 5,000 characters a day. Adding your email raises that to about 50,000 a day. It's only sent to MyMemory.</p>
+      <input id="mm-email" type="email" placeholder="Email (optional)" value="${kvGet("mymemory_email", "")}" autocomplete="email">
+      <button id="save-mm" class="secondary">Save</button>
     </div>`;
 
   root.querySelector("#theme").onclick = (e) => {
@@ -223,11 +241,15 @@ export function settingsView(root) {
         system: "Reply in French.",
         user: "Say hello in three words.",
         schema: { type: "object", properties: { reply: { type: "string" } } },
-        fast: true,
+        purpose: "test",
         maxTokens: 200,
       });
       toast(`Works ✓ Claude says: ${r.reply}`, 4000);
     });
+  root.querySelector("#save-mm").onclick = () => {
+    kvSet("mymemory_email", root.querySelector("#mm-email").value.trim());
+    toast("Saved ✓");
+  };
   root.querySelector("#save-prefs").onclick = () => {
     kvSet("level", root.querySelector("#level").value);
     kvSet("review_cap", Math.max(5, Number(root.querySelector("#cap").value) || 20));

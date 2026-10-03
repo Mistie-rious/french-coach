@@ -192,7 +192,24 @@ test("old databases (and backups) get the new audio column on open", async () =>
   assert.equal(db.scalar("SELECT COUNT(*) FROM item"), 1);
 });
 
-test("sentence translations are prefetched in one request, then served from cache", async () => {
+const translate = await import("../web/js/translate.js");
+const claude = await import("../web/js/claude.js");
+
+test("free translation: decodes entities, caches, and reports the daily limit", async () => {
+  await fresh();
+  let calls = 0;
+  const ok = async () => {
+    calls++;
+    return new Response(JSON.stringify({ responseStatus: 200, quotaFinished: false, responseData: { translatedText: "She doesn&#39;t like crowds." } }));
+  };
+  assert.equal(await translate.translate("Elle n'aime pas la foule.", { fetchImpl: ok }), "She doesn't like crowds.");
+  assert.equal(await translate.translate("Elle n'aime pas la foule.", { fetchImpl: ok }), "She doesn't like crowds.");
+  assert.equal(calls, 1); // second call came from the cache
+  const quota = async () => new Response(JSON.stringify({ responseStatus: 429, quotaFinished: true, responseData: { translatedText: "MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY" } }));
+  await assert.rejects(translate.translate("Autre phrase.", { fetchImpl: quota }), /limit/);
+});
+
+test("every Claude call uses Haiku and is counted in the cost meter", async () => {
   await fresh();
   const store = { anthropic_api_key: "sk-test" };
   Object.defineProperty(globalThis, "localStorage", {
@@ -200,25 +217,21 @@ test("sentence translations are prefetched in one request, then served from cach
     value: { getItem: (k) => store[k] ?? null, setItem: (k, v) => (store[k] = v), removeItem: (k) => delete store[k] },
   });
   const realFetch = globalThis.fetch;
-  const calls = [];
+  const bodies = [];
   globalThis.fetch = async (url, opts) => {
-    const body = JSON.parse(opts.body);
-    calls.push(body);
-    const lines = body.messages[0].content.split("\n");
-    const items = lines.map((l, i) => ({ n: i + 1, translation: `EN:${l.replace(/^\d+\. /, "")}`, notes: [] }));
-    return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ items }) }] }));
+    bodies.push(JSON.parse(opts.body));
+    return new Response(JSON.stringify({ stop_reason: "end_turn", usage: { input_tokens: 1000, output_tokens: 200 }, content: [{ type: "text", text: JSON.stringify({ translation: "It's raining.", notes: ["impersonal verb"] }) }] }));
   };
   try {
-    const sents = ["Il pleut.", "Je reste chez moi.", "Il pleut."];
-    content.prefetchSentences(sents);
-    const a = await content.explainSentence("Je reste chez moi."); // waits for the running prefetch
-    const b = await content.explainSentence("Il pleut.");          // cache hit
-    assert.equal(a.translation, "EN:Je reste chez moi.");
-    assert.equal(b.translation, "EN:Il pleut.");
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].model, "claude-haiku-4-5");
-    content.prefetchSentences(sents); // already cached -> no new request
-    assert.equal(calls.length, 1);
+    const r = await content.explainSentence("Il pleut.");
+    assert.equal(r.translation, "It's raining.");
+    await content.explainSentence("Il pleut."); // cached: no second call
+    assert.equal(bodies.length, 1);
+    assert.equal(bodies[0].model, "claude-haiku-4-5");
+    assert.equal(bodies[0].output_config.effort, undefined);
+    const u = claude.usageSince(0);
+    assert.equal(u.rows[0].purpose, "grammar");
+    assert.ok(Math.abs(u.total - (1000 * 1e-6 + 200 * 5e-6)) < 1e-9); // $0.002
   } finally {
     globalThis.fetch = realFetch;
     delete globalThis.localStorage;

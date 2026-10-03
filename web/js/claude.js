@@ -1,8 +1,10 @@
 // Direct browser calls to the Claude API with structured JSON output.
 // The API key lives only in this device's localStorage — never in the code or the backup file.
+import { all, run } from "./db.js";
 
 const KEY = "anthropic_api_key";
-export const MODELS = { main: "claude-sonnet-5-5", fast: "claude-haiku-4-5" };
+export const MODEL = "claude-haiku-4-5";
+const PRICE = { input: 1 / 1e6, output: 5 / 1e6 }; // USD per token for Haiku 4.5
 
 export const getKey = () => {
   try { return localStorage.getItem(KEY) || ""; } catch { return ""; }
@@ -24,16 +26,16 @@ export function strict(schema) {
   return schema;
 }
 
-/** One request; returns the parsed JSON object matching `schema`. `fast` = Haiku (word lookups). */
-export async function structured({ system, user, schema, fast = false, maxTokens = 8000 }) {
+/** One request; returns the parsed JSON object matching `schema`. `purpose` labels it in the usage meter. */
+export async function structured({ system, user, schema, purpose = "other", maxTokens = 4000 }) {
   const key = getKey();
   if (!key) throw new ClaudeError("No Claude API key (add one in Settings)");
   const body = {
-    model: fast ? MODELS.fast : MODELS.main,
+    model: MODEL,
     max_tokens: maxTokens,
     system,
     messages: [{ role: "user", content: user }],
-    output_config: { format: { type: "json_schema", schema: strict(schema) }, ...(fast ? {} : { effort: "medium" }) },
+    output_config: { format: { type: "json_schema", schema: strict(schema) } },
   };
   let resp;
   try {
@@ -52,6 +54,7 @@ export async function structured({ system, user, schema, fast = false, maxTokens
   }
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new ClaudeError(`Claude API ${resp.status}: ${data?.error?.message || resp.statusText}`);
+  if (data.usage) logUsage(purpose, data.usage);
   if (data.stop_reason === "refusal") throw new ClaudeError("Claude declined this request");
   if (data.stop_reason === "max_tokens") throw new ClaudeError("Claude's answer was cut off");
   const text = data.content?.find((b) => b.type === "text")?.text;
@@ -60,4 +63,26 @@ export async function structured({ system, user, schema, fast = false, maxTokens
   } catch {
     throw new ClaudeError("Claude returned something unreadable");
   }
+}
+
+// ---------- usage meter ----------
+
+function logUsage(purpose, u) {
+  try {
+    run("INSERT INTO llm_usage(purpose, model, input_tokens, output_tokens, created_at) VALUES (?,?,?,?,?)", [
+      purpose, MODEL, (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0), u.output_tokens || 0, Date.now(),
+    ]);
+  } catch (e) {
+    console.warn("usage log failed", e);
+  }
+}
+
+/** Spend since `since` (ms) grouped by purpose: [{purpose, calls, cost}] plus total. */
+export function usageSince(since) {
+  const rows = all(
+    `SELECT purpose, COUNT(*) AS calls, SUM(input_tokens) AS inp, SUM(output_tokens) AS outp
+     FROM llm_usage WHERE created_at >= ? GROUP BY purpose ORDER BY SUM(output_tokens) DESC`,
+    [since],
+  ).map((r) => ({ purpose: r.purpose, calls: r.calls, cost: r.inp * PRICE.input + r.outp * PRICE.output }));
+  return { rows, total: rows.reduce((s, r) => s + r.cost, 0) };
 }
