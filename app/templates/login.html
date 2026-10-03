@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% set hide_nav = true %}
+{% block content %}
+<h1>Bonjour 👋</h1>
+<form method="post" action="/login" class="card stack">
+  <input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <button>Log in</button>
+</form>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Écrire</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<form method="post" action="/write" class="stack">
+  <div class="card prompt">{{ prompt }}</div>
+  <input type="hidden" name="prompt" value="{{ prompt }}">
+  <textarea name="text" id="text" rows="10" placeholder="Écris 80–150 mots…" required autocapitalize="sentences" spellcheck="false"></textarea>
+  <div class="row between">
+    <small class="muted" id="count">0 mots</small>
+    <button data-busy="Correcting…">Correct it</button>
+  </div>
+</form>
+
+{% if past %}
+<h2>Past writing</h2>
+<ul class="list">
+  {% for s in past %}
+  <li><a href="/write/{{ s.id }}" class="card row between">
+    <span class="grow ellipsis">{{ s.raw_text[:80] }}</span>
+    <span class="pill">{{ s.errors | length }} err</span>
+  </a></li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const t = document.getElementById("text"), c = document.getElementById("count");
+  const KEY = "draft";
+  try { t.value = localStorage.getItem(KEY) || ""; } catch {}
+  const upd = () => { c.textContent = (t.value.match(/\S+/g) || []).length + " mots"; };
+  t.addEventListener("input", () => { upd(); try { localStorage.setItem(KEY, t.value); } catch {} });
+  t.form.addEventListener("submit", () => { try { localStorage.removeItem(KEY); } catch {} });
+  upd();
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Stats</h1>
+
+<div class="tiles">
+  <div class="card tile"><strong>{{ streak }}</strong><small>day streak</small></div>
+  <div class="card tile"><strong>{{ known }}</strong><small>words known<br><span class="muted">of {{ saved }} saved</span></small></div>
+  <div class="card tile"><strong>{{ retention ~ '%' if retention is not none else '–' }}</strong><small>recall (30d)</small></div>
+</div>
+
+<h2>Last 4 weeks</h2>
+<div class="card heat">
+  {% for d in last28 %}<span class="{{ 'on' if d.active }}" title="{{ d.date }}"></span>{% endfor %}
+</div>
+
+<h2>Top mistakes this week</h2>
+<div class="card">
+  {% for cat, n in top %}
+  <div class="bar"><span class="label">{{ cat | replace('_', ' ') }}</span><span class="track"><span style="width: {{ (100 * n / top_max) | round }}%"></span></span><span class="n">{{ n }}</span></div>
+  {% else %}
+  <p class="muted">No mistakes logged this week.</p>
+  {% endfor %}
+</div>
+{% endblock %}
