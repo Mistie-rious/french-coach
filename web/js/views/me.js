@@ -2,7 +2,7 @@ import { all, exportBytes, importBytes, kvGet, kvSet, run, saveNow } from "../db
 import { getKey, setKey, structured } from "../claude.js";
 import { LEVELS } from "../content.js";
 import { stats as getStats } from "../progress.js";
-import { busy, fmtDay, go, html, localDate, mark, toast } from "../util.js";
+import { busy, fmtDay, getTheme, go, html, localDate, mark, setTheme, toast } from "../util.js";
 
 // ---------- stats ----------
 
@@ -184,6 +184,11 @@ export function settingsView(root) {
   root.innerHTML = html`
     <h1>Settings</h1>
     <div class="card stack">
+      <strong>Appearance</strong>
+      <div class="choice" id="theme">${[["light", "Light"], ["dark", "Dark"], ["auto", "Auto"]].map(([k, label]) =>
+        html`<button class="small-btn ${getTheme() === k ? "on" : ""}" data-theme="${k}">${label}</button>`)}</div>
+    </div>
+    <div class="card stack">
       <strong>Claude API key</strong>
       <p class="small muted">Stored only on this phone (not in backups). Get one at console.anthropic.com and set a monthly spend limit there.</p>
       <input id="key" type="password" placeholder="sk-ant-…" value="${key}" autocomplete="off">
@@ -201,6 +206,12 @@ export function settingsView(root) {
       <button id="save-prefs">Save</button>
     </div>`;
 
+  root.querySelector("#theme").onclick = (e) => {
+    const b = e.target.closest("[data-theme]");
+    if (!b) return;
+    setTheme(b.dataset.theme);
+    root.querySelectorAll("#theme button").forEach((x) => x.classList.toggle("on", x === b));
+  };
   root.querySelector("#save-key").onclick = () => {
     setKey(root.querySelector("#key").value);
     toast(getKey() ? "Key saved ✓" : "Key removed");

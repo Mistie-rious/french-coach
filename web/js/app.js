@@ -1,6 +1,6 @@
 // Boot + hash router.
 import { openDb, saveNow } from "./db.js";
-import { esc } from "./util.js";
+import { applyTheme, esc } from "./util.js";
 import today from "./views/today.js";
 import review from "./views/review.js";
 import { readList, reader } from "./views/read.js";
@@ -39,6 +39,8 @@ async function route() {
 }
 
 async function boot() {
+  applyTheme();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", applyTheme);
   await openDb();
   navigator.storage?.persist?.(); // ask the browser not to evict our data
   window.addEventListener("hashchange", route);

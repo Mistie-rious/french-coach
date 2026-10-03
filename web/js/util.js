@@ -70,6 +70,21 @@ export function hashtext(s) {
   return (h >>> 0).toString(16);
 }
 
+// ---- theme ----
+export const getTheme = () => {
+  try { return localStorage.getItem("theme") || "light"; } catch { return "light"; }
+};
+export function setTheme(t) {
+  try { localStorage.setItem("theme", t); } catch {}
+  applyTheme();
+}
+export function applyTheme() {
+  const t = getTheme();
+  document.documentElement.dataset.theme = t;
+  const dark = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#18171c" : "#f6f5f2");
+}
+
 // ---- navigation ----
 /** Navigate to a hash route; re-renders even if it's the current one. */
 export function go(hash) {

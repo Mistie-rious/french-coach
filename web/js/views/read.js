@@ -1,7 +1,7 @@
 import { all, get, kvGet, kvSet, run } from "../db.js";
 import { hasKey } from "../claude.js";
 import {
-  LEVELS, addText, claudeGloss, explainSentence, generateText, level, nextBuiltinText, rewriteText,
+  LEVELS, addText, claudeGloss, explainSentence, generateText, level, nextBuiltinText, prefetchSentences, rewriteText,
   savedLemmas, savedSentences, saveSentence, saveWord,
 } from "../content.js";
 import { lemmaCandidates, loadDict, lookup, tokenize } from "../nlp.js";
@@ -92,6 +92,7 @@ export function reader(root, { params: [id] }) {
     </div>`;
 
   const article = root.querySelector(".reading");
+  if (hasKey()) prefetchSentences(sentences.map((s) => s.text)); // makes sentence taps (near) instant
   const setMode = (m) => {
     mode = m;
     kvSet("reader_mode", m);
@@ -209,7 +210,7 @@ export function reader(root, { params: [id] }) {
         <p><strong>${g.lemma}</strong> <small class="muted inline">${g.pos}${g.gender ? ` · ${g.gender}` : ""}</small> — ${g.lemma_meaning}</p>
         ${g.note ? html`<p class="note">${g.note}</p>` : ""}
         ${g.example_fr ? html`<p class="small">${g.example_fr}<br><span class="muted">${g.example_en}</span></p>` : ""}
-        <p class="small muted">${g.sentence_en}</p>
+        ${g.sentence_en ? html`<p class="small muted">${g.sentence_en}</p>` : ""}
         <button class="wide" id="save-claude">Save to review</button>`);
     } catch (err) {
       render(html`<p class="small error">${err.message}</p>`);

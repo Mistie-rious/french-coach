@@ -191,3 +191,36 @@ test("old databases (and backups) get the new audio column on open", async () =>
   assert.ok(db.all("PRAGMA table_info(item)").some((c) => c.name === "audio"));
   assert.equal(db.scalar("SELECT COUNT(*) FROM item"), 1);
 });
+
+test("sentence translations are prefetched in one request, then served from cache", async () => {
+  await fresh();
+  const store = { anthropic_api_key: "sk-test" };
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: { getItem: (k) => store[k] ?? null, setItem: (k, v) => (store[k] = v), removeItem: (k) => delete store[k] },
+  });
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, opts) => {
+    const body = JSON.parse(opts.body);
+    calls.push(body);
+    const lines = body.messages[0].content.split("\n");
+    const items = lines.map((l, i) => ({ n: i + 1, translation: `EN:${l.replace(/^\d+\. /, "")}`, notes: [] }));
+    return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ items }) }] }));
+  };
+  try {
+    const sents = ["Il pleut.", "Je reste chez moi.", "Il pleut."];
+    content.prefetchSentences(sents);
+    const a = await content.explainSentence("Je reste chez moi."); // waits for the running prefetch
+    const b = await content.explainSentence("Il pleut.");          // cache hit
+    assert.equal(a.translation, "EN:Je reste chez moi.");
+    assert.equal(b.translation, "EN:Il pleut.");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].model, "claude-haiku-4-5");
+    content.prefetchSentences(sents); // already cached -> no new request
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete globalThis.localStorage;
+  }
+});

@@ -1,6 +1,6 @@
 import { level } from "../content.js";
 import { DAILY_GOAL, compare, fetchBatch, listenedToday, recordAttempt } from "../listen.js";
-import { busy, go, html } from "../util.js";
+import { go, html } from "../util.js";
 
 let batch = [];
 let batchLevel = null;
@@ -64,9 +64,10 @@ export default async function listen(root) {
     <div class="card listen-card">
       ${playerHtml({ big: true })}
       <textarea id="typed" rows="3" placeholder="Écris ce que tu entends…" autocapitalize="sentences" spellcheck="false" autocomplete="off"></textarea>
-      <div class="row gap">
+      <div class="row gap" id="actions">
         <button id="check" class="grow">Check</button>
         <button id="hint" class="secondary">Hint</button>
+        <button id="reveal" class="secondary">Reveal</button>
       </div>
       <p id="hint-text" class="muted small" hidden>${s.en}</p>
       <div id="result"></div>
@@ -79,27 +80,39 @@ export default async function listen(root) {
   const typed = root.querySelector("#typed");
   root.querySelector("#hint").onclick = () => (root.querySelector("#hint-text").hidden = false);
 
-  root.querySelector("#check").onclick = (e) =>
-    busy(e.target, "…", async () => {
-      const answer = typed.value.trim();
-      const r = compare(s.text, answer);
-      const { itemId } = recordAttempt(s, answer, r.score);
-      batch.shift();
-      typed.readOnly = true;
-      e.target.closest(".row").hidden = true;
-      const pct = Math.round(r.score * 100);
-      root.querySelector("#result").innerHTML = html`
-        <div class="dictation">
-          <p class="score ${pct === 100 ? "perfect" : pct >= 70 ? "good" : "low"}">${pct === 100 ? "Parfait !" : `${pct}%`}</p>
-          <p class="context">${r.tokens.map((t) => html`<span class="d-${t.status}">${t.w}</span>${t.w.endsWith("'") ? "" : " "}`)}</p>
-          ${r.extra.length ? html`<p class="small muted">Extra words you typed: <s>${r.extra.join(" ")}</s></p>` : ""}
-          <p class="small muted">Original: ${s.text}</p>
-          <p class="accent">${s.en}</p>
-          ${itemId ? html`<p class="small">Added to your reviews so you hear it again.</p>` : ""}
-          <button id="next" class="wide">Next sentence →</button>
-        </div>`;
-      root.querySelector("#next").onclick = () => go("#/listen");
-    });
+  // Check (scored) or Reveal (counts as not heard): either way show the answer and move on.
+  const finish = (answer, revealed) => {
+    const r = compare(s.text, answer);
+    const score = revealed ? 0 : r.score;
+    const { itemId } = recordAttempt(s, answer, score);
+    batch.shift();
+    typed.readOnly = true;
+    root.querySelector("#actions").hidden = true;
+    root.querySelector("#hint-text").hidden = true;
+    const pct = Math.round(score * 100);
+    root.querySelector("#result").innerHTML = html`
+      <div class="dictation">
+        ${revealed
+          ? html`<p class="kind">the answer</p><p class="context">${s.text}</p>`
+          : html`
+            <p class="score ${pct === 100 ? "perfect" : pct >= 70 ? "good" : "low"}">${pct === 100 ? "Parfait !" : `${pct}%`}</p>
+            <p class="context">${r.tokens.map((t) => html`<span class="d-${t.status}">${t.w}</span>${t.w.endsWith("'") ? "" : " "}`)}</p>
+            ${r.extra.length ? html`<p class="small muted">Extra words you typed: <s>${r.extra.join(" ")}</s></p>` : ""}
+            <p class="small muted">Original: ${s.text}</p>`}
+        <p class="accent">${s.en}</p>
+        ${itemId ? html`<p class="small muted">Added to your reviews so you hear it again.</p>` : ""}
+        <button id="replay" class="secondary wide">▶ Listen again</button>
+        <button id="next" class="wide">Next sentence →</button>
+      </div>`;
+    root.querySelector("#replay").onclick = () => {
+      audio.currentTime = 0;
+      audio.playbackRate = 1;
+      audio.play().catch(() => {});
+    };
+    root.querySelector("#next").onclick = () => go("#/listen");
+  };
+  root.querySelector("#check").onclick = () => finish(typed.value.trim(), false);
+  root.querySelector("#reveal").onclick = () => finish(typed.value.trim(), true);
   typed.onkeydown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

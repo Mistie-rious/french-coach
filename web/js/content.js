@@ -91,59 +91,101 @@ export function nextBuiltinText() {
 
 // ---------- lookups ----------
 
-async function cached(key, fn) {
+const cacheGet = (key) => {
   const hit = scalar("SELECT data FROM gloss_cache WHERE key = ?", [key]);
-  if (hit) return JSON.parse(hit);
-  const data = await fn();
-  run("INSERT OR REPLACE INTO gloss_cache(key, data) VALUES (?, ?)", [key, JSON.stringify(data)]);
-  return data;
-}
+  return hit ? JSON.parse(hit) : null;
+};
+const cacheSet = (key, data) => run("INSERT OR REPLACE INTO gloss_cache(key, data) VALUES (?, ?)", [key, JSON.stringify(data)]);
 
+// Kept short on purpose: fewer output tokens = faster answers.
 const GLOSS_SCHEMA = {
   type: "object",
   properties: {
     lemma: { type: "string", description: "Dictionary form: infinitive for verbs, masculine singular for adjectives" },
     pos: { type: "string", description: "noun, verb, adj, adv, prep, expression, ..." },
     gender: { type: "string", enum: ["m", "f", ""], description: "For nouns; empty otherwise" },
-    meaning: { type: "string", description: "English meaning of the word as used in this sentence" },
+    meaning: { type: "string", description: "English meaning of the word as used in this sentence (a few words)" },
     lemma_meaning: { type: "string", description: "Short English gloss of the lemma (1-3 senses)" },
-    sentence_en: { type: "string", description: "Natural English translation of the whole sentence" },
-    note: { type: "string", description: "Only if useful (idiom, false friend, irregular form, register); else empty" },
-    example_fr: { type: "string", description: "A different short everyday example sentence using the lemma" },
-    example_en: { type: "string" },
+    note: { type: "string", description: "Only if really useful (idiom, false friend, irregular form); else empty. Max 12 words." },
   },
 };
 
-/** Contextual word gloss from Claude (cached). */
-export const claudeGloss = (word, sentence) =>
-  cached(hashtext(`w|${word}|${sentence}`), () => {
+/** Contextual word gloss from Claude (cached). Adds the sentence translation if we already have it. */
+export async function claudeGloss(word, sentence) {
+  const key = hashtext(`w2|${word}|${sentence}`);
+  let g = cacheGet(key);
+  if (!g) {
     const hint = lookup(word).slice(0, 3).map((d) => `${d.lemma} (${d.pos}): ${d.gloss}`).join(" | ");
-    return structured({
-      system: `You are a concise French-English learner's dictionary explaining words in context for a ${level()} learner.`,
+    g = await structured({
+      system: `Terse French-English learner's dictionary for a ${level()} learner. Explain the word as used in the sentence.`,
       user: `Word: ${word}\nSentence: ${sentence}\nDictionary hints: ${hint || "(none)"}`,
       schema: GLOSS_SCHEMA,
       fast: true,
-      maxTokens: 1000,
+      maxTokens: 400,
     });
-  });
+    cacheSet(key, g);
+  }
+  const s = cacheGet(sentenceKey(sentence));
+  return { ...g, sentence_en: s?.translation || "" };
+}
 
-/** Sentence translation + the grammar/vocab worth noticing (cached). */
-export const explainSentence = (sentence) =>
-  cached(hashtext(`s|${level()}|${sentence}`), () =>
-    structured({
-      system: `You help a ${level()} French learner understand sentences. Be brief and concrete.`,
-      user: `Sentence: ${sentence}`,
+// ---------- sentence translations (prefetched per text) ----------
+
+const SENTENCE_SYSTEM = () => `You help a ${level()} French learner understand sentences. Translate naturally into English and add at most 2 very short notes (grammar, idiom, tricky word) only where useful.`;
+const NOTE_ITEM = { type: "array", items: { type: "string" }, description: "0-2 short notes in English, max 12 words each" };
+const sentenceKey = (sentence) => hashtext(`s|${level()}|${sentence}`);
+const inflight = new Map(); // sentence -> Promise<{translation, notes}|null>
+
+/** Translate all of a text's sentences in the background (one request per ~25 sentences). */
+export function prefetchSentences(sentences) {
+  const todo = [...new Set(sentences)].filter((s) => /\p{L}/u.test(s) && !inflight.has(s) && !cacheGet(sentenceKey(s)));
+  for (let i = 0; i < todo.length; i += 25) {
+    const chunk = todo.slice(i, i + 25);
+    const req = structured({
+      system: SENTENCE_SYSTEM(),
+      user: chunk.map((s, n) => `${n + 1}. ${s}`).join("\n"),
       schema: {
         type: "object",
         properties: {
-          translation: { type: "string", description: "Natural English translation" },
-          notes: { type: "array", description: "1-3 short points worth noticing (grammar, idiom, tricky word), in English", items: { type: "string" } },
+          items: {
+            type: "array",
+            description: "One entry per numbered sentence, same order",
+            items: { type: "object", properties: { n: { type: "integer" }, translation: { type: "string" }, notes: NOTE_ITEM } },
+          },
         },
       },
       fast: true,
-      maxTokens: 1000,
-    }),
-  );
+      maxTokens: 8000,
+    }).then((res) => {
+      for (const it of res.items) {
+        const s = chunk[it.n - 1];
+        if (s) cacheSet(sentenceKey(s), { translation: it.translation, notes: it.notes });
+      }
+    });
+    for (const s of chunk) {
+      inflight.set(s, req.then(() => cacheGet(sentenceKey(s)), () => null).finally(() => inflight.delete(s)));
+    }
+  }
+}
+
+/** Sentence translation + notes: from cache, from a running prefetch, or a direct request. */
+export async function explainSentence(sentence) {
+  const hit = cacheGet(sentenceKey(sentence));
+  if (hit) return hit;
+  if (inflight.has(sentence)) {
+    const r = await inflight.get(sentence);
+    if (r) return r;
+  }
+  const res = await structured({
+    system: SENTENCE_SYSTEM(),
+    user: sentence,
+    schema: { type: "object", properties: { translation: { type: "string" }, notes: NOTE_ITEM } },
+    fast: true,
+    maxTokens: 500,
+  });
+  cacheSet(sentenceKey(sentence), res);
+  return res;
+}
 
 // ---------- saving ----------
 
