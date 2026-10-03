@@ -1,4 +1,6 @@
-# Français: coach
+# Petit à Petit
+
+*Petit à petit, l'oiseau fait son nid*: little by little, the bird builds its nest.
 
 A phone-first web app (installable PWA) for a daily ~20-minute session: **review** (FSRS flashcards) → **read** (tap words or sentences to look up and save) → **listen** (dictation with native speakers) → **write** (corrected by Claude) → **drill** today's mistakes. A **Learn** tab adds new-word discovery by level, a conjugation trainer (198 core verbs, all main tenses), and short lessons on grammar, common mistakes and pronunciation. Every saved word and every mistake becomes a review card.
 

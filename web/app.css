@@ -223,9 +223,10 @@ details[open] summary { margin-bottom: 12px; }
 /* ── Today ── */
 .hero { position: relative; margin-bottom: 18px; }
 .hero h1 { margin-bottom: 0.15em; }
+.wordmark { margin: 0; font: italic 400 1.05rem var(--display); color: var(--purple); letter-spacing: 0.02em; }
 .hero .date { color: var(--muted); font-size: 0.95rem; margin: 0; }
 .sticker {
-  position: absolute; top: 6px; right: 2px;
+  position: absolute; top: 22px; right: 2px;
   width: 74px; height: 74px; border-radius: 50%;
   display: grid; place-items: center; text-align: center;
   background: var(--mustard-soft); color: var(--text);

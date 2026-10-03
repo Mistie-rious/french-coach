@@ -53,6 +53,7 @@ export default function today(root) {
 
   root.innerHTML = html`
     <header class="hero">
+      <p class="wordmark">Petit à Petit</p>
       <h1>${greeting} !</h1>
       <p class="date">${date}</p>
       <div class="sticker"><div><b>${n}</b><small>jour${n === 1 ? "" : "s"} 🔥</small></div></div>

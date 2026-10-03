@@ -1,7 +1,7 @@
 // SQLite in the browser (sql.js), persisted to IndexedDB. The whole DB is small, so we
 // save the full file after each change. Backup/restore = download/upload that same file.
 
-const IDB_NAME = "french-coach";
+const IDB_NAME = "french-coach"; // storage key: never rename, or existing data is lost
 const IDB_STORE = "files";
 const IDB_KEY = "coach.db";
 
@@ -216,7 +216,7 @@ export async function importBytes(bytes) {
   const test = new SQL.Database(bytes);
   const ok = test.exec("SELECT name FROM sqlite_master WHERE name IN ('item','card')")[0]?.values.length === 2;
   test.close();
-  if (!ok) throw new Error("That database isn't a French Coach backup");
+  if (!ok) throw new Error("That database isn't a Petit à Petit backup");
   db.close();
   db = new SQL.Database(bytes);
   db.exec("PRAGMA foreign_keys = ON;");

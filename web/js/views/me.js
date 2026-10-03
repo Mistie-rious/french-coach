@@ -142,7 +142,7 @@ const writingRow = (r) => html`
 
 async function backup() {
   await saveNow();
-  const name = `french-coach-${localDate()}.db`;
+  const name = `petit-a-petit-${localDate()}.db`;
   const file = new File([exportBytes()], name, { type: "application/octet-stream" });
   if (navigator.canShare?.({ files: [file] })) {
     try {
