@@ -6,6 +6,7 @@ import {
 } from "../content.js";
 import { lemmaCandidates, loadDict, lookup, tokenize } from "../nlp.js";
 import { translate } from "../translate.js";
+import { t } from "../i18n.js";
 import { canSpeak, speakSequence, stopSpeaking } from "../learn.js";
 import { busy, esc, fmtDay, go, html, raw, toast } from "../util.js";
 
@@ -149,7 +150,7 @@ export function reader(root, { params: [id] }) {
     go("#/");
   };
   root.querySelector("#del").onclick = () => {
-    if (!confirm("Delete this text? Saved words stay.")) return;
+    if (!confirm(t("Delete this text? Saved words stay."))) return;
     run("DELETE FROM text WHERE id = ?", [doc.id]);
     go("#/read");
   };

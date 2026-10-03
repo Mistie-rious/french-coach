@@ -1,6 +1,7 @@
 import { all, exportBytes, importBytes, kvGet, kvSet, run, saveNow } from "../db.js";
 import { getKey, setKey, structured, usageSince } from "../claude.js";
 import { LEVELS } from "../content.js";
+import { setUiLang, t, uiLang } from "../i18n.js";
 import { stats as getStats } from "../progress.js";
 import { busy, fmtDay, getTheme, go, html, localDate, mark, setTheme, toast } from "../util.js";
 
@@ -74,7 +75,7 @@ export function data(root, { query }) {
   root.querySelector("#csv").onclick = exportCsv;
   root.querySelector("#restore").onchange = async (e) => {
     const file = e.target.files[0];
-    if (!file || !confirm("Replace ALL data on this phone with this backup?")) return;
+    if (!file || !confirm(t("Replace ALL data on this phone with this backup?"))) return;
     try {
       await importBytes(new Uint8Array(await file.arrayBuffer()));
       toast("Restored ✓");
@@ -99,7 +100,7 @@ export function data(root, { query }) {
     } else if (act === "suspend") {
       run("UPDATE item SET suspended = 1 - suspended WHERE id = ?", [id]);
       go(location.hash);
-    } else if (act === "delete" && confirm("Delete permanently, including its review history?")) {
+    } else if (act === "delete" && confirm(t("Delete permanently, including its review history?"))) {
       run(tab === "writing" ? "DELETE FROM submission WHERE id = ?" : "DELETE FROM item WHERE id = ?", [id]);
       go(location.hash);
     }
@@ -196,6 +197,12 @@ export function settingsView(root) {
         html`<button class="small-btn ${getTheme() === k ? "on" : ""}" data-theme="${k}">${label}</button>`)}</div>
     </div>
     <div class="card stack">
+      <strong>App language</strong>
+      <div class="choice" id="lang">${[["en", "English"], ["fr", "Français"]].map(([k, label]) =>
+        html`<button class="small-btn ${uiLang() === k ? "on" : ""}" data-lang="${k}">${label}</button>`)}</div>
+      <p class="small muted" data-raw>Mode immersion : toute l'app en français. Tes textes, tes cartes et les leçons ne changent pas.</p>
+    </div>
+    <div class="card stack">
       <strong>Claude API key</strong>
       <p class="small muted">Stored only on this phone (not in backups). Get one at console.anthropic.com and set a monthly spend limit there.</p>
       <input id="key" type="password" placeholder="sk-ant-…" value="${key}" autocomplete="off">
@@ -231,6 +238,12 @@ export function settingsView(root) {
     if (!b) return;
     setTheme(b.dataset.theme);
     root.querySelectorAll("#theme button").forEach((x) => x.classList.toggle("on", x === b));
+  };
+  root.querySelector("#lang").onclick = (e) => {
+    const b = e.target.closest("[data-lang]");
+    if (!b || b.dataset.lang === uiLang()) return;
+    setUiLang(b.dataset.lang);
+    location.reload(); // simplest way to re-render everything in the new language
   };
   root.querySelector("#save-key").onclick = () => {
     setKey(root.querySelector("#key").value);

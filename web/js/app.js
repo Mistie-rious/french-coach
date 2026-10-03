@@ -1,6 +1,7 @@
 // Boot + hash router.
 import { openDb, saveNow } from "./db.js";
 import { applyTheme, esc } from "./util.js";
+import { startImmersion } from "./i18n.js";
 import today from "./views/today.js";
 import review from "./views/review.js";
 import { readList, reader } from "./views/read.js";
@@ -64,6 +65,7 @@ async function boot() {
     speak(b.dataset.say);
   });
   document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && saveNow());
+  startImmersion(); // French UI if chosen in Settings
   await route();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 }

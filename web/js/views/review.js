@@ -2,6 +2,7 @@ import { run } from "../db.js";
 import { previews, queue, review, settings } from "../srs.js";
 import { reviewedToday, todaysMistakeIds } from "../progress.js";
 import { fmtInterval, go, html, mark } from "../util.js";
+import { t } from "../i18n.js";
 import { credit, playerHtml, wirePlayer } from "./listen.js";
 
 export default function reviewView(root, { query }) {
@@ -110,7 +111,7 @@ export default function reviewView(root, { query }) {
     if (b) rate(Number(b.dataset.r));
   };
   root.querySelector("#remove").onclick = () => {
-    if (!confirm("Remove this card from reviews? (You can restore it in My data.)")) return;
+    if (!confirm(t("Remove this card from reviews? (You can restore it in My data.)"))) return;
     run("UPDATE item SET suspended = 1 WHERE id = ?", [card.item_id]);
     go(self);
   };

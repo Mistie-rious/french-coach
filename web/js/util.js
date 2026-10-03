@@ -49,7 +49,11 @@ export function fmtInterval(ms) {
   const d = m / 1440;
   return d < 60 ? `${Math.round(d)}d` : `${Math.round(d / 30)}mo`;
 }
-export const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+export const fmtDay = (ms) => {
+  let fr = false;
+  try { fr = localStorage.getItem("ui_lang") === "fr"; } catch {}
+  return new Date(ms).toLocaleDateString(fr ? "fr-FR" : undefined, { day: "numeric", month: "short" });
+};
 
 // ---- UI ----
 export function toast(msg, ms = 2500) {
