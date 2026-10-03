@@ -13,7 +13,7 @@ There's no server. Everything runs in the phone's browser:
 
 ```sh
 cd web && python3 -m http.server 8000   # http://localhost:8000
-node --test tests/                       # tests (Node 22+)
+node --test tests/*.test.mjs             # tests
 ```
 
 ## Deploy
