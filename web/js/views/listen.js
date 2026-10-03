@@ -91,7 +91,7 @@ export default async function listen(root) {
       root.querySelector("#result").innerHTML = html`
         <div class="dictation">
           <p class="score ${pct === 100 ? "perfect" : pct >= 70 ? "good" : "low"}">${pct === 100 ? "Parfait !" : `${pct}%`}</p>
-          <p class="context">${r.tokens.map((t) => html`<span class="d-${t.status}">${t.w}</span> `)}</p>
+          <p class="context">${r.tokens.map((t) => html`<span class="d-${t.status}">${t.w}</span>${t.w.endsWith("'") ? "" : " "}`)}</p>
           ${r.extra.length ? html`<p class="small muted">Extra words you typed: <s>${r.extra.join(" ")}</s></p>` : ""}
           <p class="small muted">Original: ${s.text}</p>
           <p class="accent">${s.en}</p>
