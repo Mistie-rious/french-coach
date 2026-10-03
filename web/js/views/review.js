@@ -29,7 +29,18 @@ export default function reviewView(root, { query }) {
 
   const p = previews(card);
   const audio = card.audio ? JSON.parse(card.audio) : null;
-  const body = card.kind === "dictation"
+  const say = (t) => html`<button class="say" data-say="${t.replace(/\[\[|\]\]/g, "")}" aria-label="Pronounce">🔊</button>`;
+  const body = card.kind === "conj"
+    ? html`
+        <p class="kind">conjugate</p>
+        <p class="big">${card.front.split(" · ")[0]}</p>
+        <p class="context">${card.front.split(" · ").slice(1).join(" · ")} → ?</p>
+        <div class="answer">
+          <p class="big accent">${card.back} ${say(card.back)}</p>
+          ${card.note ? html`<p class="small muted">${card.note}</p>` : ""}
+          <a class="small" href="#/learn/verb/${encodeURIComponent(card.lemma || "")}">Full table →</a>
+        </div>`
+    : card.kind === "dictation"
     ? html`
         <p class="kind">listen · what do you hear?</p>
         ${playerHtml()}
@@ -44,6 +55,7 @@ export default function reviewView(root, { query }) {
         <p class="context">${card.front}</p>
         <div class="answer">
           <p class="context accent">${card.back}</p>
+          ${say(card.front)}
           ${card.note ? html`<p class="note">${card.note}</p>` : ""}
         </div>`
     : card.kind === "word"
@@ -51,7 +63,7 @@ export default function reviewView(root, { query }) {
         <p class="kind">word</p>
         ${card.context ? html`<p class="context">${mark(card.context)}</p>` : html`<p class="big">${card.front}</p>`}
         <div class="answer">
-          <p class="big">${card.front}</p>
+          <p class="big">${card.front} ${say(card.front.replace(/ \([mf]\)$/, ""))}</p>
           <p class="big accent">${card.back}</p>
           ${card.context_en ? html`<p class="muted">${card.context_en}</p>` : ""}
           ${card.note ? html`<p class="note">${card.note}</p>` : ""}
@@ -92,7 +104,7 @@ export default function reviewView(root, { query }) {
     go(self);
   };
   show.onclick = reveal;
-  flash.onclick = reveal;
+  flash.onclick = (e) => !e.target.closest("[data-say], a") && reveal();
   ratings.onclick = (e) => {
     const b = e.target.closest("button[data-r]");
     if (b) rate(Number(b.dataset.r));

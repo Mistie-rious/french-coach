@@ -397,3 +397,36 @@ article.reading::first-letter { font: italic 400 3.4rem/0.8 var(--display); floa
   max-width: calc(100% - 32px); box-shadow: var(--shadow-lift);
   animation: up 0.2s ease-out;
 }
+
+/* ── Learn ── */
+.hub { display: flex; align-items: center; gap: 14px; border-left: 4px solid var(--c); }
+.hub-icon { width: 42px; height: 42px; flex: none; border-radius: 12px; display: grid; place-items: center; font-size: 1.3rem; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.hub small { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.chip { padding: 6px 12px; font-size: 0.82rem; border-radius: 999px; background: var(--card); color: var(--muted); border: 1px solid var(--line-strong); box-shadow: none; }
+.chip.on { background: var(--purple-soft); color: var(--purple); border-color: transparent; }
+.conj-card { border-top: 4px solid var(--sky); margin-top: 4px; }
+.conj-card .big { margin-bottom: 0; }
+.conj-line { display: flex; align-items: center; gap: 8px; margin: 16px 0 12px; font: 400 1.3rem var(--read); }
+.conj-line .subj { white-space: nowrap; color: var(--muted); }
+.conj-line input { margin: 0; font: 400 1.25rem var(--read); }
+input.right { border-color: var(--sage); background: var(--sage-soft); }
+input.almost { border-color: var(--mustard); background: var(--mustard-soft); }
+input.wrong { border-color: var(--coral); background: var(--coral-soft); }
+.conj-table .row { padding: 6px 0; border-bottom: 1px solid var(--line); font-family: var(--read); font-size: 1.1rem; }
+.conj-table .row:last-child { border-bottom: 0; }
+.say { background: none; box-shadow: none; padding: 2px 6px; font-size: 1rem; vertical-align: middle; border-radius: 8px; }
+.say:active { background: var(--purple-soft); }
+.word-card { transition: opacity 0.25s, transform 0.25s; }
+.word-card.gone { opacity: 0; transform: translateX(30px); }
+.word-card .big { margin: 0; }
+.ex { font-family: var(--read); font-size: 1.05rem; background: var(--paper); border-radius: 10px; padding: 8px 10px; margin: 8px 0; }
+.ex span { display: block; font: 500 0.82rem var(--ui); color: var(--muted); margin-top: 2px; }
+.lesson { line-height: 1.6; }
+.lesson h3 { font: italic 400 1.35rem var(--display); margin: 1.2em 0 0.3em; }
+.lesson ul, .lesson ol { padding-left: 20px; }
+.lesson li { margin: 4px 0; }
+table.mini { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 10px 0; background: var(--card); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+table.mini th, table.mini td { padding: 7px 9px; text-align: left; border-bottom: 1px solid var(--line); }
+table.mini th { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+table.mini tr:last-child td { border-bottom: 0; }

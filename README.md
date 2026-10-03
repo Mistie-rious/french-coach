@@ -1,6 +1,6 @@
 # Français: coach
 
-A phone-first web app (installable PWA) for a daily ~20-minute session: **review** (FSRS flashcards) → **read** (tap words or sentences to look up and save) → **listen** (dictation with native speakers) → **write** (corrected by LanguageTool + Claude) → **drill** today's mistakes. Every saved word and every mistake becomes a review card.
+A phone-first web app (installable PWA) for a daily ~20-minute session: **review** (FSRS flashcards) → **read** (tap words or sentences to look up and save) → **listen** (dictation with native speakers) → **write** (corrected by Claude) → **drill** today's mistakes. A **Learn** tab adds new-word discovery by level, a conjugation trainer (198 core verbs, all main tenses), and short lessons on grammar, common mistakes and pronunciation. Every saved word and every mistake becomes a review card.
 
 There's no server. Everything runs in the phone's browser:
 
@@ -34,7 +34,10 @@ web/
   js/content.js     texts, word lookups/saving, daily prompt
   js/progress.js    streak + stats
   js/views/         screens
-  dict/fr-en.json   built by tools/build_dict.py
+  js/learn.js       new words, conjugation engine, pronunciation (speechSynthesis)
+  js/lessons.js     Tips & tricks lessons
+  dict/fr-en.json   built by tools/build_dict.py (frequency-ordered)
+  dict/verbs.json   conjugation tables for the core verbs (same script)
   vendor/           sql.js, ts-fsrs
 ```
 

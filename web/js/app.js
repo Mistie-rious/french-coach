@@ -7,10 +7,17 @@ import { readList, reader } from "./views/read.js";
 import { write, feedback } from "./views/write.js";
 import { stats, data, settingsView } from "./views/me.js";
 import listen from "./views/listen.js";
+import { learnHub, lessonView, speak, tipsView, verbTable, verbsView, wordsView } from "./views/learn.js";
 
 const ROUTES = [
   [/^\/$/, today, "today"],
-  [/^\/review$/, review, "review"],
+  [/^\/review$/, review, "learn"],
+  [/^\/learn$/, learnHub, "learn"],
+  [/^\/learn\/words$/, wordsView, "learn"],
+  [/^\/learn\/verbs$/, verbsView, "learn"],
+  [/^\/learn\/verb\/([^/]+)$/, verbTable, "learn"],
+  [/^\/learn\/tips$/, tipsView, "learn"],
+  [/^\/learn\/tips\/([\w-]+)$/, lessonView, "learn"],
   [/^\/read$/, readList, "read"],
   [/^\/read\/(\d+)$/, reader, "read"],
   [/^\/write$/, write, "write"],
@@ -44,6 +51,13 @@ async function boot() {
   await openDb();
   navigator.storage?.persist?.(); // ask the browser not to evict our data
   window.addEventListener("hashchange", route);
+  // 🔊 buttons anywhere: pronounce with the phone's French voice.
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-say]");
+    if (!b) return;
+    e.stopPropagation();
+    speak(b.dataset.say);
+  });
   document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && saveNow());
   await route();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

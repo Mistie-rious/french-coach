@@ -237,3 +237,58 @@ test("every Claude call uses Haiku and is counted in the cost meter", async () =
     delete globalThis.localStorage;
   }
 });
+
+const learn = await import("../web/js/learn.js");
+const VERBS = JSON.parse(readFileSync(new URL("../web/dict/verbs.json", import.meta.url)));
+learn.setVerbs(VERBS);
+const V = (inf, refl = false) => VERBS.find((v) => v.inf === inf && !!v.reflexive === refl);
+const line = (inf, tense, person, refl = false) => {
+  const v = V(inf, refl);
+  const f = learn.forms(v, tense)[person];
+  return `${learn.subjectFor(v, tense, person, f)}${f}`;
+};
+
+test("conjugation lines: elision, reflexives, être agreement, subjunctive", () => {
+  assert.equal(line("aimer", "present", 0), "j'aime");
+  assert.equal(line("parler", "present", 0), "je parle");
+  assert.equal(line("aller", "subjonctif", 0), "que j'aille");
+  assert.equal(line("aller", "subjonctif", 2), "qu'il/elle aille");
+  assert.equal(line("aller", "passe_compose", 0), "je suis allé(e)");
+  assert.equal(line("aller", "passe_compose", 5), "ils/elles sont allé(e)s");
+  assert.equal(line("manger", "passe_compose", 3), "nous avons mangé");
+  assert.equal(line("être", "passe_compose", 0), "j'ai été");
+  assert.equal(line("lever", "present", 0, true), "je me lève");
+  assert.equal(line("lever", "passe_compose", 2, true), "il/elle s'est levé(e)");
+  assert.equal(line("amuser", "present", 3, true), "nous nous amusons");
+  assert.equal(learn.forms(V("lever", true), "imperatif")[0], "lève-toi");
+  assert.equal(learn.forms(V("falloir"), "present")[0], null); // no "je faut"
+});
+
+test("checking answers: ignores typed pronouns, tolerates agreement, flags accents", () => {
+  const q = (inf, tense, person, refl = false) => ({ verb: V(inf, refl), tense, person, answer: learn.forms(V(inf, refl), tense)[person] });
+  assert.equal(learn.checkConj(q("aller", "present", 3), "allons"), "ok");
+  assert.equal(learn.checkConj(q("aller", "present", 3), "nous allons"), "ok");
+  assert.equal(learn.checkConj(q("aller", "passe_compose", 0), "suis allée"), "ok");
+  assert.equal(learn.checkConj(q("aller", "passe_compose", 0), "je suis allé"), "ok");
+  assert.equal(learn.checkConj(q("aller", "passe_compose", 0), "ai allé"), "wrong");
+  assert.equal(learn.checkConj(q("être", "present", 4), "etes"), "accent");
+  assert.equal(learn.checkConj(q("lever", "present", 0, true), "je me lève"), "ok");
+});
+
+test("new words skip saved, known and ambiguous forms; mistakes become conj cards once", async () => {
+  await fresh();
+  const dict = JSON.parse(readFileSync(new URL("../web/dict/fr-en.json", import.meta.url)));
+  const first = learn.newWords(dict, "A1", { limit: 5 });
+  assert.equal(first.length, 5);
+  assert.ok(!first.some((w) => dict.f[w.lemma]));
+  learn.markKnown(first[0].lemma);
+  learn.learnWord(first[1]);
+  const next = learn.newWords(dict, "A1", { limit: 5 }).map((w) => w.lemma);
+  assert.ok(!next.includes(first[0].lemma) && !next.includes(first[1].lemma));
+  assert.ok(learn.newWords(dict, "A2", { verbsOnly: true, limit: 5 }).every((w) => w.senses.every(([p]) => p === "verb")));
+
+  const qq = { verb: V("aller"), tense: "imparfait", person: 3, answer: "allions" };
+  const a = learn.saveConjMistake(qq);
+  assert.equal(learn.saveConjMistake(qq), a);
+  assert.equal(db.get("SELECT back FROM item WHERE id = ?", [a]).back, "nous allions");
+});

@@ -8,7 +8,7 @@ const IDB_KEY = "coach.db";
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS item (
   id INTEGER PRIMARY KEY,
-  kind TEXT NOT NULL,              -- word | sentence | mistake | dictation
+  kind TEXT NOT NULL,              -- word | sentence | mistake | dictation | conj
   lemma TEXT,                      -- word items
   front TEXT NOT NULL,
   back TEXT NOT NULL,
@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS listen_log (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_listen_at ON listen_log(created_at);
+
+CREATE TABLE IF NOT EXISTS known_word (lemma TEXT PRIMARY KEY, created_at INTEGER NOT NULL); -- "I know it" in New words
 
 CREATE TABLE IF NOT EXISTS llm_usage (
   id INTEGER PRIMARY KEY,

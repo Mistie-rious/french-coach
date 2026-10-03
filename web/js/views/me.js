@@ -30,7 +30,7 @@ export function stats(root) {
 
 // ---------- my data ----------
 
-const TABS = { words: "Words", sentences: "Sentences", listening: "Listening", mistakes: "Mistakes", writing: "Writing" };
+const TABS = { words: "Words", verbs: "Verbs", sentences: "Sentences", listening: "Listening", mistakes: "Mistakes", writing: "Writing" };
 
 export function data(root, { query }) {
   const tab = TABS[query.get("tab")] ? query.get("tab") : "words";
@@ -40,6 +40,8 @@ export function data(root, { query }) {
   if (tab === "words") {
     rows = all(`SELECT item.*, card.due, card.state, card.stability FROM item LEFT JOIN card ON card.item_id = item.id
                 WHERE kind = 'word' AND (? = '' OR front LIKE ? OR back LIKE ? OR lemma LIKE ?) ORDER BY item.created_at DESC`, [q, like, like, like]);
+  } else if (tab === "verbs") {
+    rows = all(`SELECT * FROM item WHERE kind = 'conj' AND (? = '' OR front LIKE ? OR back LIKE ?) ORDER BY created_at DESC`, [q, like, like]);
   } else if (tab === "sentences") {
     rows = all(`SELECT * FROM item WHERE kind = 'sentence' AND (? = '' OR front LIKE ? OR back LIKE ?) ORDER BY created_at DESC`, [q, like, like]);
   } else if (tab === "listening") {
@@ -111,9 +113,9 @@ function itemRow(r) {
       <div class="row between gap">
         <div class="grow">
           ${r.kind === "word" ? html`<strong>${r.front}</strong> — ${r.back}`
-            : r.kind === "sentence" || r.kind === "dictation" ? html`<span>${r.front}</span><br><span class="muted">${r.back}</span>`
+            : r.kind === "sentence" || r.kind === "dictation" || r.kind === "conj" ? html`<span>${r.front}</span><br><span class="muted">${r.back}</span>`
             : html`<span>${mark(r.front)}</span><br><span class="good">${mark(r.back)}</span>`}
-          <small class="muted">${r.kind === "word" ? (learned ? "known" : r.due ? "learning" : "") : r.kind === "sentence" ? "sentence" : r.kind === "dictation" ? "listening" : (r.category || "").replace("_", " ")}
+          <small class="muted">${r.kind === "word" ? (learned ? "known" : r.due ? "learning" : "") : r.kind === "sentence" ? "sentence" : r.kind === "dictation" ? "listening" : r.kind === "conj" ? "conjugation" : (r.category || "").replace("_", " ")}
             ${r.suspended ? " · removed from reviews" : ""} · ${fmtDay(r.created_at)}</small>
         </div>
         <button class="link" data-act="edit">✎</button>
