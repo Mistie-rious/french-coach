@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Français</title>
+  <meta name="description" content="Personal daily French coach">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Français">
+  <link rel="stylesheet" href="app.css">
+  <script src="vendor/sql-wasm.js"></script>
+  <script src="vendor/ts-fsrs.js"></script>
+</head>
+<body>
+  <main id="view"><p class="muted center">Chargement…</p></main>
+  <nav class="tabbar">
+    <a href="#/" data-tab="today"><span>☀︎</span>Today</a>
+    <a href="#/review" data-tab="review"><span>↻</span>Review</a>
+    <a href="#/read" data-tab="read"><span>📖</span>Read</a>
+    <a href="#/write" data-tab="write"><span>✎</span>Write</a>
+    <a href="#/me" data-tab="me"><span>▤</span>Me</a>
+  </nav>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
