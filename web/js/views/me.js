@@ -182,7 +182,7 @@ function exportCsv() {
 
 // ---------- settings ----------
 
-const PURPOSES = { check: "Answer checks", story: "Feuilleton", talk: "Conversations", correction: "Corrections", text: "New texts", rewrite: "Rewrites", word: "Ask Claude (words)", grammar: "Explain grammar", prompt: "Writing prompts", test: "Key test", other: "Other" };
+const PURPOSES = { translate: "Translations", check: "Answer checks", story: "Feuilleton", talk: "Conversations", correction: "Corrections", text: "New texts", rewrite: "Rewrites", word: "Ask Claude (words)", grammar: "Explain grammar", prompt: "Writing prompts", test: "Key test", other: "Other" };
 
 export function settingsView(root) {
   const key = getKey();
@@ -227,8 +227,8 @@ export function settingsView(root) {
       <p class="small muted">Estimated from token counts at Haiku 4.5 prices. Your Anthropic Console shows the exact bill.</p>
     </div>
     <div class="card stack">
-      <strong>Free translations</strong>
-      <p class="small muted">Sentence translations come from MyMemory (free, no key): about 5,000 characters a day. Adding your email raises that to about 50,000 a day. It's only sent to MyMemory.</p>
+      <strong>Backup translator</strong>
+      <p class="small muted">Translations come from Claude. Without a key (or if Claude is unreachable) the app falls back to MyMemory: free but less reliable, about 5,000 characters a day. Adding your email raises that to about 50,000. It's only sent to MyMemory.</p>
       <input id="mm-email" type="email" placeholder="Email (optional)" value="${kvGet("mymemory_email", "")}" autocomplete="email">
       <button id="save-mm" class="secondary">Save</button>
     </div>`;

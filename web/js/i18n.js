@@ -136,7 +136,9 @@ const EXACT = {
   "Add your own": "Ajouter les tiens", "Type a French word or sentence, see what it means, save it to review": "Écris un mot ou une phrase en français, vois ce que ça veut dire, garde-le pour réviser",
   "Type a French word or sentence you've come across. You'll see what it means, then you can save it to your reviews.": "Écris un mot ou une phrase que tu as croisé. Tu verras le sens, puis tu pourras le garder dans tes révisions.",
   "Translate": "Traduire", "Translating…": "Traduction…", "Meaning to learn": "Sens à retenir", "Translation": "Traduction", "Recently added": "Ajoutés récemment",
-  "Add a meaning first": "Ajoute d'abord un sens", "Dictionary (tap one to use it):": "Dictionnaire (touche un sens pour le choisir) :",
+  "Add a meaning first": "Ajoute d'abord un sens", "Translations": "Traductions", "Backup translator": "Traducteur de secours",
+  "Translations come from Claude. Without a key (or if Claude is unreachable) the app falls back to MyMemory: free but less reliable, about 5,000 characters a day. Adding your email raises that to about 50,000. It's only sent to MyMemory.":
+    "Les traductions viennent de Claude. Sans clé (ou si Claude est injoignable), l'app utilise MyMemory : gratuit mais moins fiable, environ 5 000 caractères par jour. Avec ton e-mail, environ 50 000. Il n'est envoyé qu'à MyMemory.", "Dictionary (tap one to use it):": "Dictionnaire (touche un sens pour le choisir) :",
   // feuilleton
   "Start a different story": "Commencer une autre histoire", "Next episode →": "Épisode suivant →", "✨ Next episode": "✨ Épisode suivant",
   "A story in episodes, written at your level, with the same characters every day. Pick a genre:": "Une histoire en épisodes, à ton niveau, avec les mêmes personnages chaque jour. Choisis un genre :",

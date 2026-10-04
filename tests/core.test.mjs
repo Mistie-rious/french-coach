@@ -470,3 +470,28 @@ test("correction prompt asks for natural French and missing words, with thinking
   assert.match(req.system, /Missing words are errors/);
   assert.ok(req.think >= 1024);
 });
+
+test("translations use Claude when there's a key (cached), MyMemory only as fallback", async () => {
+  await fresh();
+  const store = { anthropic_api_key: "sk-test" };
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: (k) => store[k] ?? null, setItem: (k, v) => (store[k] = v), removeItem: (k) => delete store[k] } });
+  const realFetch = globalThis.fetch;
+  const bodies = [];
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes("anthropic")) {
+      bodies.push(JSON.parse(opts.body));
+      return new Response(JSON.stringify({ stop_reason: "end_turn", usage: { input_tokens: 60, output_tokens: 8 }, content: [{ type: "text", text: JSON.stringify({ translation: "friend, mate; boyfriend" }) }] }));
+    }
+    throw new Error("MyMemory must not be called");
+  };
+  try {
+    assert.equal(await translate.translate("copain"), "friend, mate; boyfriend");
+    assert.equal(await translate.translate("copain"), "friend, mate; boyfriend");
+    assert.equal(bodies.length, 1);
+    assert.equal(bodies[0].model, "claude-haiku-4-5");
+    assert.match(bodies[0].messages[0].content, /common English meaning/);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete globalThis.localStorage;
+  }
+});
