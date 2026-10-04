@@ -1,13 +1,15 @@
-import { kvGet, kvSet, scalar } from "../db.js";
-import { level } from "../content.js";
+import { all, kvGet, kvSet, scalar } from "../db.js";
+import { explainSentence, level, saveSentence, saveWord } from "../content.js";
+import { hasKey } from "../claude.js";
+import { translate } from "../translate.js";
 import {
   TENSES, canSpeak, checkConj, forms, knownCount, learnWord, loadVerbs, markKnown, newWords, promptText,
   question, saveConjMistake, speak, subjectFor, verbByInf, verbLabel, IMPERATIVE_LABELS,
 } from "../learn.js";
 import { GROUPS, LESSONS, lessonById } from "../lessons.js";
-import { loadDict } from "../nlp.js";
+import { lemmaCandidates, loadDict, lookup } from "../nlp.js";
 import { queue, settings } from "../srs.js";
-import { go, html, raw, toast } from "../util.js";
+import { busy, fmtDay, go, html, mark, raw, toast } from "../util.js";
 export { speak };
 
 const sayBtn = (text) => (canSpeak() ? html`<button class="say" data-say="${text}" aria-label="Pronounce">🔊</button>` : "");
@@ -27,6 +29,8 @@ export async function learnHub(root) {
     <h1>Apprendre</h1>
     <a href="#/review" class="card hub c-purple"><span class="hub-icon">↻</span>
       <span class="grow"><strong>Review</strong><small>${due ? `${due} cards due` : "nothing due right now"}</small></span><span class="chev">→</span></a>
+    <a href="#/learn/add" class="card hub c-purple"><span class="hub-icon">＋</span>
+      <span class="grow"><strong>Add your own</strong><small>Type a French word or sentence, see what it means, save it to review</small></span><span class="chev">→</span></a>
     <a href="#/listen" class="card hub c-sage"><span class="hub-icon">🎧</span>
       <span class="grow"><strong>Listening</strong><small>Dictation with native speakers (Tatoeba)</small></span><span class="chev">→</span></a>
     <a href="#/learn/words" class="card hub c-coral"><span class="hub-icon">✚</span>
@@ -250,4 +254,95 @@ export function lessonView(root, { params: [id] }) {
       p.prepend(b);
     });
   }
+}
+
+// ---------- add your own words & sentences ----------
+
+export async function addView(root) {
+  const recent = all(`SELECT id, kind, front, back, created_at FROM item WHERE kind IN ('word','sentence') AND text_id IS NULL
+                      ORDER BY created_at DESC LIMIT 10`);
+  root.innerHTML = html`
+    <h1>Ajouter</h1>
+    <p class="muted small">Type a French word or sentence you've come across. You'll see what it means, then you can save it to your reviews.</p>
+    <div class="card stack">
+      <textarea id="fr" rows="2" placeholder="ex. : avoir le cafard / Je n'en reviens pas !" autocapitalize="off" spellcheck="false"></textarea>
+      <button id="go" class="wide">Translate</button>
+      <div id="result"></div>
+    </div>
+    ${recent.length ? html`
+      <h2>Recently added</h2>
+      <ul class="list">${recent.map((r) => html`
+        <li class="card"><strong>${r.kind === "word" ? r.front : mark(r.front)}</strong><br><span class="muted">${r.back}</span>
+          <small class="muted">${r.kind} · ${fmtDay(r.created_at)}</small></li>`)}</ul>` : ""}`;
+
+  const input = root.querySelector("#fr");
+  const out = root.querySelector("#result");
+  input.focus();
+  const run = async () => {
+    const text = input.value.trim().replace(/\s+/g, " ");
+    if (!text) return input.focus();
+    const isWord = text.split(" ").length <= 2 && !/[.!?]$/.test(text);
+    out.innerHTML = html`<p class="loading small">Translating</p>`;
+    let en = "";
+    try { en = await translate(text); } catch (e) { toast(e.message, 4000); }
+
+    if (isWord) {
+      await loadDict().catch(() => {});
+      const entries = lookup(text).slice(0, 3);
+      const first = entries[0];
+      out.innerHTML = html`
+        <p class="big">${text} <button class="say" data-say="${text}">🔊</button></p>
+        <label class="small muted">Meaning to learn<input id="meaning" value="${en || (first ? first.gloss.split(/;\s*/).slice(0, 2).join("; ") : "")}"></label>
+        ${entries.length ? html`<p class="small muted">Dictionary (tap one to use it):</p>
+          <ul class="dict pick">${entries.map((d) => html`
+          <li data-gloss="${d.gloss}"><span class="grow"><strong>${d.lemma}</strong> <small class="muted inline">${d.pos}${d.gender ? ` · ${d.gender}` : ""}</small> — ${d.gloss}</span></li>`)}</ul>` : ""}
+        <button class="wide" id="save">Save to review</button>`;
+      out.querySelector(".dict.pick")?.addEventListener("click", (e) => {
+        const li = e.target.closest("[data-gloss]");
+        if (li) out.querySelector("#meaning").value = li.dataset.gloss;
+      });
+      out.querySelector("#save").onclick = (e) => {
+        const meaning = out.querySelector("#meaning").value.trim();
+        if (!meaning) return toast("Add a meaning first");
+        const lemma = first?.lemma || lemmaCandidates(text)[0] || text.toLowerCase();
+        const res = saveWord({
+          word: text, sentence: first?.ex_fr || "", textId: null,
+          g: { lemma, pos: first?.pos || "", gender: first?.gender || "", lemma_meaning: meaning, sentence_en: first?.ex_en || null },
+        });
+        e.target.disabled = true;
+        e.target.textContent = res.created ? "Saved ✓" : "Already saved ✓";
+      };
+    } else {
+      out.innerHTML = html`
+        <p class="context">${text} <button class="say" data-say="${text}">🔊</button></p>
+        <label class="small muted">Translation<textarea id="meaning" rows="2">${en}</textarea></label>
+        <div id="notes"></div>
+        <div class="row gap">
+          <button class="grow" id="save">Save to review</button>
+          ${hasKey() ? html`<button class="secondary" id="explain">✦ Explain grammar</button>` : ""}
+        </div>`;
+      let notes = null;
+      out.querySelector("#explain")?.addEventListener("click", (e) => busy(e.target, "…", async () => {
+        const r = await explainSentence(text);
+        notes = r.notes;
+        if (!out.querySelector("#meaning").value.trim()) out.querySelector("#meaning").value = r.translation;
+        out.querySelector("#notes").innerHTML = html`<p class="small muted">Claude: ${r.translation}</p><ul class="notes">${r.notes.map((n) => html`<li>${n}</li>`)}</ul>`;
+        e.target.remove();
+      }));
+      out.querySelector("#save").onclick = (e) => {
+        const translation = out.querySelector("#meaning").value.trim();
+        if (!translation) return toast("Add a translation first");
+        const res = saveSentence({ sentence: text, translation, notes: notes?.join(" · "), textId: null });
+        e.target.disabled = true;
+        e.target.textContent = res.created ? "Saved ✓" : "Already saved ✓";
+      };
+    }
+  };
+  root.querySelector("#go").onclick = (e) => busy(e.target, "Translating…", run);
+  input.onkeydown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      root.querySelector("#go").click();
+    }
+  };
 }

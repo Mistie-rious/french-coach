@@ -132,6 +132,11 @@ const EXACT = {
   // typed answers in review
   "Type the correct version of the highlighted part:": "Écris la bonne version de la partie surlignée :", "I don't know": "Je ne sais pas",
   "Your answer…": "Ta réponse…", "Type what you hear…": "Écris ce que tu entends…", "You wrote:": "Tu as écrit :", "Presque !": "Presque !",
+  "Claude is checking your version": "Claude vérifie ta version", "Check the accents.": "Vérifie les accents.", "Answer checks": "Vérifications",
+  "Add your own": "Ajouter les tiens", "Type a French word or sentence, see what it means, save it to review": "Écris un mot ou une phrase en français, vois ce que ça veut dire, garde-le pour réviser",
+  "Type a French word or sentence you've come across. You'll see what it means, then you can save it to your reviews.": "Écris un mot ou une phrase que tu as croisé. Tu verras le sens, puis tu pourras le garder dans tes révisions.",
+  "Translate": "Traduire", "Translating…": "Traduction…", "Meaning to learn": "Sens à retenir", "Translation": "Traduction", "Recently added": "Ajoutés récemment",
+  "Add a meaning first": "Ajoute d'abord un sens", "Dictionary (tap one to use it):": "Dictionnaire (touche un sens pour le choisir) :",
   // feuilleton
   "Start a different story": "Commencer une autre histoire", "Next episode →": "Épisode suivant →", "✨ Next episode": "✨ Épisode suivant",
   "A story in episodes, written at your level, with the same characters every day. Pick a genre:": "Une histoire en épisodes, à ton niveau, avec les mêmes personnages chaque jour. Choisis un genre :",
@@ -170,6 +175,10 @@ const PATTERNS = [
   [/^(\d+) err$/, (m) => `${m[1]} err.`],
   [/^(\d+) (words|verbs|sentences|listening|mistakes|writing)$/, (m) => `${m[1]} ${PLURAL[m[2]]}`],
   [/^(\d+)m$/, (m) => `${m[1]} min`], [/^(\d+)h$/, (m) => `${m[1]} h`], [/^(\d+)d$/, (m) => `${m[1]} j`], [/^(\d+)mo$/, (m) => `${m[1]} mois`],
+  [/^You missed « (.+) »\.$/, (m) => `Il manque « ${m[1]} ».`],
+  [/^« (.+) » isn't needed\.$/, (m) => `« ${m[1]} » n'est pas nécessaire.`],
+  [/^Translator: (.*)$/, (m) => `Traducteur : ${m[1]}`],
+  [/^Claude: (.*)$/, (m) => `Claude : ${m[1]}`],
   [/^Read episode (\d+) →$/, (m) => `Lire l'épisode ${m[1]} →`],
   [/^✨ Episode (\d+)$/, (m) => `✨ Épisode ${m[1]}`],
   [/^🔥 (\d+) in a row$/, (m) => `🔥 ${m[1]} d'affilée`],

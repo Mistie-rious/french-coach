@@ -61,10 +61,16 @@ const SCHEMA = {
   },
 };
 
+export const NATURAL_RULES = `- Aim for what a native French speaker would naturally say, keeping the learner's meaning and as much of their own wording as possible.
+- Missing words are errors too: articles (un/une/le/la/des/du), prepositions (à/de/en), "ne" in negations, pronouns. Include a neighbouring word in \`original\` so the fix can be shown (e.g. original "avec amie" → "avec une amie").
+- Word-for-word English phrasing that no French person would say is an error (category "vocabulary"): give the natural expression.
+- Don't flag choices that are already correct and natural, even if you'd phrase them differently.`;
+
 const SYSTEM = (level) => `You are a kind, precise French teacher correcting a CEFR ${level} learner's writing.
-- Find every real error: spelling/accents, agreement, gender, conjugation, tense/mood choice, prepositions, articles, word order, and clearly unidiomatic phrasing.
-- Fix what a ${level} learner should fix; don't rewrite for elegance and don't flag correct-but-different choices. Preserve the meaning.
-- \`original\` must be copied exactly from the learner's text so it can be located; keep it as short as possible.
+- Find every real error: spelling/accents, agreement, gender, conjugation, tense/mood choice, prepositions, articles, word order, missing words, and unnatural phrasing.
+${NATURAL_RULES}
+- \`original\` must be copied exactly from the learner's text so it can be located; keep it short.
+- corrected_text must read as natural, correct French.
 - Explanations in ${level.startsWith("A") ? "very simple English, one short sentence, with a mini example if helpful" : "concise English naming the rule"}.
 - The summary is encouraging and names the one or two things to focus on.`;
 
@@ -101,6 +107,7 @@ async function withClaude(text, prompt, level, claude) {
     schema: SCHEMA,
     purpose: "correction",
     maxTokens: 6000,
+    think: 2000, // a little reasoning time noticeably improves corrections
   });
   const errors = [];
   let cursor = 0;
@@ -170,5 +177,36 @@ export async function correct(text, prompt, { level = "B1", modality = "write", 
       addCard(itemId, "fix", at);
     }
     return subId;
+  });
+}
+
+// ---------- judging a typed fix in Review/Drill ----------
+
+/**
+ * Ask Claude whether the learner's answer to a fix-the-mistake card is correct, natural French,
+ * even if it differs from the stored answer. Returns {verdict: "correct"|"almost"|"wrong", feedback, better}.
+ */
+export async function judgeFix({ front, back, answer, level = "B1" }, { claude = structured } = {}) {
+  const plain = (s) => s.replace(/\[\[|\]\]/g, "");
+  return claude({
+    system: `You check a French learner's (CEFR ${level}) answer to a correction exercise. Judge meaning and natural French, not exact wording.
+- "correct": their version fixes the error and is correct, natural French (it does NOT have to match the expected answer).
+- "almost": right idea but a small slip (a missing or wrong small word like un/une/la/de, an accent, an agreement ending).
+- "wrong": the error isn't fixed, or new errors were introduced.
+feedback: one short, kind sentence in English saying exactly what was right or what's missing (quote the word).
+better: the full corrected sentence using the learner's version if it was acceptable, otherwise the natural correct sentence.`,
+    user: `Sentence with the error marked [[like this]]: ${front}
+Expected correction: ${plain(back)}
+The learner's answer (for the marked part, or a whole sentence): ${answer}`,
+    schema: {
+      type: "object",
+      properties: {
+        verdict: { type: "string", enum: ["correct", "almost", "wrong"] },
+        feedback: { type: "string" },
+        better: { type: "string" },
+      },
+    },
+    purpose: "check",
+    maxTokens: 400,
   });
 }

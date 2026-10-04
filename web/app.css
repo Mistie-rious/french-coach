@@ -503,3 +503,6 @@ table.mini tr:last-child td { border-bottom: 0; }
 
 .just-talk { border-left: 4px solid var(--purple); }
 .just-talk .compose-row { margin-top: 10px; }
+.verdict.almost .score { color: var(--mustard); }
+.dict.pick li { cursor: pointer; }
+.dict.pick li:active { background: var(--purple-soft); }

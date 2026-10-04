@@ -437,3 +437,36 @@ test("free chat: you speak first, tutor prompt allows questions in English", asy
   assert.match(calls[0].user, /Learner: How do I say/);
   assert.deepEqual(talk.getConversation(id).messages.map((m) => m.role), ["me", "ai"]);
 });
+
+test("fix answers: one word off is 'almost' with a note; Claude can accept a natural alternative", async () => {
+  const back = "Je suis allé au cinéma avec [[une amie]].";
+  assert.deepEqual(learn.gradeFix(back, "une amie"), { verdict: "ok", note: "" });
+  assert.equal(learn.gradeFix(back, "amie").verdict, "almost");
+  assert.match(learn.gradeFix(back, "amie").note, /une/);
+  assert.equal(learn.gradeFix(back, "la amie").verdict, "almost"); // wrong small word
+  assert.equal(learn.gradeFix(back, "un ami").verdict, "wrong"); // two words off
+  assert.equal(learn.gradeFix("Il fait [[très beau]].", "tres beau").verdict, "almost"); // accents
+
+  const calls = [];
+  const fake = async ({ system, user, purpose }) => {
+    calls.push({ system, user, purpose });
+    return { verdict: "correct", feedback: "Also natural: « une copine » works here.", better: "Je suis allé au cinéma avec une copine." };
+  };
+  const j = await correction.judgeFix({ front: "Je suis allé au cinéma avec [[amie]].", back, answer: "une copine" }, { claude: fake });
+  assert.equal(j.verdict, "correct");
+  assert.match(calls[0].system, /does NOT have to match/);
+  assert.equal(calls[0].purpose, "check");
+});
+
+test("correction prompt asks for natural French and missing words, with thinking time", async () => {
+  await fresh();
+  let req;
+  await correction.correct("Je vais à cinéma.", "p", {
+    useClaude: true,
+    lt: async () => [],
+    claude: async (r) => { req = r; return { corrected_text: "Je vais au cinéma.", summary: "ok", errors: [] }; },
+  });
+  assert.match(req.system, /native French speaker would naturally say/);
+  assert.match(req.system, /Missing words are errors/);
+  assert.ok(req.think >= 1024);
+});

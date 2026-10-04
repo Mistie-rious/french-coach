@@ -9,7 +9,7 @@ import { write, feedback } from "./views/write.js";
 import { stats, data, settingsView } from "./views/me.js";
 import listen from "./views/listen.js";
 import { talkChat, talkHome } from "./views/talk.js";
-import { learnHub, lessonView, speak, tipsView, verbTable, verbsView, wordsView } from "./views/learn.js";
+import { addView, learnHub, lessonView, speak, tipsView, verbTable, verbsView, wordsView } from "./views/learn.js";
 import { stopSpeaking } from "./learn.js";
 
 const ROUTES = [
@@ -17,6 +17,7 @@ const ROUTES = [
   [/^\/review$/, review, "learn"],
   [/^\/learn$/, learnHub, "learn"],
   [/^\/learn\/words$/, wordsView, "learn"],
+  [/^\/learn\/add$/, addView, "learn"],
   [/^\/learn\/verbs$/, verbsView, "learn"],
   [/^\/learn\/verb\/([^/]+)$/, verbTable, "learn"],
   [/^\/learn\/tips$/, tipsView, "learn"],

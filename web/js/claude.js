@@ -26,8 +26,11 @@ export function strict(schema) {
   return schema;
 }
 
-/** One request; returns the parsed JSON object matching `schema`. `purpose` labels it in the usage meter. */
-export async function structured({ system, user, schema, purpose = "other", maxTokens = 4000 }) {
+/**
+ * One request; returns the parsed JSON object matching `schema`. `purpose` labels it in the usage meter.
+ * `think` > 0 gives Claude that many tokens to reason before answering (billed as output).
+ */
+export async function structured({ system, user, schema, purpose = "other", maxTokens = 4000, think = 0 }) {
   const key = getKey();
   if (!key) throw new ClaudeError("No Claude API key (add one in Settings)");
   const body = {
@@ -37,6 +40,31 @@ export async function structured({ system, user, schema, purpose = "other", maxT
     messages: [{ role: "user", content: user }],
     output_config: { format: { type: "json_schema", schema: strict(schema) } },
   };
+  if (think) {
+    body.thinking = { type: "enabled", budget_tokens: think };
+    body.max_tokens = maxTokens + think;
+  }
+  let { resp, data } = await send(key, body);
+  if (think && resp.status === 400) {
+    // Safety net: if thinking is ever rejected for this request, answer without it rather than fail.
+    console.warn("Request with thinking rejected, retrying without", data?.error?.message);
+    delete body.thinking;
+    body.max_tokens = maxTokens;
+    ({ resp, data } = await send(key, body));
+  }
+  if (!resp.ok) throw new ClaudeError(`Claude API ${resp.status}: ${data?.error?.message || resp.statusText}`);
+  if (data.usage) logUsage(purpose, data.usage);
+  if (data.stop_reason === "refusal") throw new ClaudeError("Claude declined this request");
+  if (data.stop_reason === "max_tokens") throw new ClaudeError("Claude's answer was cut off");
+  const text = data.content?.find((b) => b.type === "text")?.text;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ClaudeError("Claude returned something unreadable");
+  }
+}
+
+async function send(key, body) {
   let resp;
   try {
     resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -52,17 +80,7 @@ export async function structured({ system, user, schema, purpose = "other", maxT
   } catch {
     throw new ClaudeError("Can't reach Claude (offline?)");
   }
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new ClaudeError(`Claude API ${resp.status}: ${data?.error?.message || resp.statusText}`);
-  if (data.usage) logUsage(purpose, data.usage);
-  if (data.stop_reason === "refusal") throw new ClaudeError("Claude declined this request");
-  if (data.stop_reason === "max_tokens") throw new ClaudeError("Claude's answer was cut off");
-  const text = data.content?.find((b) => b.type === "text")?.text;
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new ClaudeError("Claude returned something unreadable");
-  }
+  return { resp, data: await resp.json().catch(() => ({})) };
 }
 
 // ---------- usage meter ----------

@@ -4,7 +4,10 @@ import { reviewedToday, todaysMistakeIds } from "../progress.js";
 import { fmtInterval, go, html, mark } from "../util.js";
 import { t } from "../i18n.js";
 import { credit, playerHtml, wirePlayer } from "./listen.js";
-import { checkTyped, conjAnswers, fixAnswers } from "../learn.js";
+import { checkTyped, conjAnswers, gradeFix } from "../learn.js";
+import { judgeFix } from "../correction.js";
+import { hasKey } from "../claude.js";
+import { level } from "../content.js";
 import { compare } from "../listen.js";
 
 export default function reviewView(root, { query }) {
@@ -116,29 +119,52 @@ export default function reviewView(root, { query }) {
   };
   // Typed answers: check, show a verdict, and highlight the rating that fits.
   const typed = root.querySelector("#typed");
-  const check = () => {
-    const answer = typed.value.trim();
-    if (!answer) return typed.focus();
-    let verdict;
-    let detail = "";
-    if (card.kind === "dictation") {
-      const r = compare(card.front, answer);
-      verdict = r.score >= 1 ? "ok" : r.score >= 0.7 ? "accent" : "wrong";
-      detail = html`<p class="context">${r.tokens.map((x) => html`<span class="d-${x.status}">${x.w}</span>${x.w.endsWith("'") ? "" : " "}`)}</p>`;
-    } else {
-      verdict = checkTyped(card.kind === "conj" ? conjAnswers(card.back) : fixAnswers(card.back), answer);
-    }
-    suggested = verdict === "ok" ? 3 : verdict === "accent" ? 2 : 1;
-    const slot = document.createElement("div");
-    flash.querySelector(".answer").before(slot); // verdict first, then the correct answer
+  // verdict: "ok" | "almost" | "wrong"; shown above the correct answer, with the fitting rating outlined.
+  const slot = document.createElement("div");
+  const showVerdict = (verdict, answer, { note = "", detail = "", better = "", checking = false } = {}) => {
+    suggested = verdict === "ok" ? 3 : verdict === "almost" ? 2 : 1;
     slot.innerHTML = html`
       <div class="verdict ${verdict}">
-        <p class="score">${verdict === "ok" ? "Juste !" : verdict === "accent" ? (card.kind === "dictation" ? "Presque !" : "Almost: check the accents") : "Pas tout à fait"}</p>
-        ${verdict !== "ok" ? html`<p class="small">You wrote: <s>${answer}</s></p>` : ""}
+        <p class="score">${verdict === "ok" ? "Juste !" : verdict === "almost" ? "Presque !" : "Pas tout à fait"}</p>
+        ${verdict !== "ok" ? html`<p class="small">You wrote: <s>${answer}</s></p>` : html`<p class="small">You wrote: ${answer}</p>`}
+        ${note ? html`<p class="small">${note}</p>` : ""}
+        ${better ? html`<p class="small good">${better}</p>` : ""}
+        ${checking ? html`<p class="small muted loading">Claude is checking your version</p>` : ""}
         ${detail}
       </div>`;
-    reveal();
+    ratings.querySelectorAll(".suggest").forEach((x) => x.classList.remove("suggest"));
     ratings.querySelector(`[data-r="${suggested}"]`)?.classList.add("suggest");
+  };
+  const check = async () => {
+    const answer = typed.value.trim();
+    if (!answer) return typed.focus();
+    flash.querySelector(".answer").before(slot);
+    if (card.kind === "dictation") {
+      const r = compare(card.front, answer);
+      const verdict = r.score >= 1 ? "ok" : r.score >= 0.7 ? "almost" : "wrong";
+      showVerdict(verdict, answer, { detail: html`<p class="context">${r.tokens.map((x) => html`<span class="d-${x.status}">${x.w}</span>${x.w.endsWith("'") ? "" : " "}`)}</p>` });
+    } else if (card.kind === "conj") {
+      const v = checkTyped(conjAnswers(card.back), answer);
+      showVerdict(v === "accent" ? "almost" : v, answer, { note: v === "accent" ? "Check the accents." : "" });
+    } else {
+      // Fix-the-mistake: free local check first (exact / accents / one word off), then Claude judges anything else,
+      // so a different-but-natural correction still counts.
+      const local = gradeFix(card.back, answer);
+      const askClaude = local.verdict !== "ok" && hasKey();
+      showVerdict(local.verdict, answer, { note: local.note, checking: askClaude });
+      reveal();
+      if (askClaude) {
+        try {
+          const j = await judgeFix({ front: card.front, back: card.back, answer, level: level() });
+          const verdict = j.verdict === "correct" ? "ok" : j.verdict;
+          showVerdict(verdict, answer, { note: j.feedback, better: verdict === "ok" ? "" : j.better });
+        } catch (err) {
+          showVerdict(local.verdict, answer, { note: local.note });
+        }
+      }
+      return;
+    }
+    reveal();
   };
   root.querySelector("#check")?.addEventListener("click", check);
   if (typed) {

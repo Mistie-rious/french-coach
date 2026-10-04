@@ -230,3 +230,41 @@ export function conjAnswers(back) {
   const full = acceptable(back);
   return [...full, ...full.map((f) => f.replace(SUBJECT, ""))];
 }
+
+const SMALL = new Set("le la les l' un une des du de d' à au aux en y ne n' pas me te se lui leur nous vous il elle on que qu' et ou".split(" "));
+const toWords = (s) => loose(s).replace(/'/g, "' ").split(" ").filter(Boolean);
+const q = (w) => `« ${w.trim()} »`;
+
+/**
+ * Local (free) grading of a fix-the-mistake answer: {verdict: "ok"|"almost"|"wrong", note}.
+ * One word off (missing, extra or different, e.g. a forgotten "une") counts as "almost", with a note saying which.
+ */
+export function gradeFix(back, typed) {
+  const accepted = fixAnswers(back);
+  const basic = checkTyped(accepted, typed);
+  if (basic === "ok") return { verdict: "ok", note: "" };
+  if (basic === "accent") return { verdict: "almost", note: "Check the accents." };
+  const t = toWords(typed);
+  if (!t.length) return { verdict: "wrong", note: "" };
+  for (const a of accepted) {
+    const e = toWords(a);
+    // longest common subsequence on accent-free words
+    const n = e.length, m = t.length;
+    const L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+      L[i][j] = bare(e[i]) === bare(t[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    const missing = [], extra = [];
+    let i = 0, j = 0;
+    while (i < n || j < m) {
+      if (i < n && j < m && bare(e[i]) === bare(t[j])) { i++; j++; }
+      else if (j < m && (i >= n || L[i][j + 1] >= L[i + 1][j])) extra.push(t[j++]);
+      else missing.push(e[i++]);
+    }
+    if (n < 2 || missing.length + extra.length === 0) continue;
+    if (missing.length === 1 && extra.length === 0) return { verdict: "almost", note: `You missed ${q(missing[0])}.` };
+    if (missing.length === 0 && extra.length === 1) return { verdict: "almost", note: `${q(extra[0])} isn't needed.` };
+    if (missing.length === 1 && extra.length === 1 && (SMALL.has(missing[0]) || SMALL.has(extra[0]) || bare(missing[0]).slice(0, 4) === bare(extra[0]).slice(0, 4)))
+      return { verdict: "almost", note: `${q(extra[0])} → ${q(missing[0])}.` };
+  }
+  return { verdict: "wrong", note: "" };
+}

@@ -3,7 +3,7 @@ import { structured } from "./claude.js";
 import { get, run, tx } from "./db.js";
 import { addCard } from "./srs.js";
 import { LEVEL_GUIDE } from "./content.js";
-import { CATEGORIES, locate } from "./correction.js";
+import { CATEGORIES, NATURAL_RULES, locate } from "./correction.js";
 
 export const SCENARIOS = [
   { id: "cafe", emoji: "☕", title: "Au café", role: "a friendly waiter in a Paris café", setting: "a busy café terrace in the morning", goal: "Order something to drink and eat, ask a question about the menu, then ask for the bill.", register: "vous" },
@@ -77,14 +77,18 @@ const system = (c) => {
 - If the learner asks something ABOUT French (often in English: a word, "how do I say…", a grammar question), answer it clearly and briefly in English first, with a French example, then continue the chat in French.
 - If the learner writes in English for other things, gently answer in simple French and encourage them to try in French.
 - Never correct the learner inside your reply; corrections go in "corrections" only (real errors in their French, not style; ignore English text).
-- goal_done is always false.`;
+- goal_done is always false.
+How to correct the learner's last message:
+${NATURAL_RULES}`;
   }
   return `You are role-playing ${s.role}. Setting: ${s.setting}.
 You're talking with an adult French learner at CEFR ${c.level} (${LEVEL_GUIDE[c.level]}).
 - Speak only French, in that level's vocabulary and grammar. Address the learner with "${s.register}".
 - Keep each reply short (1-3 sentences) and natural, like real speech. Ask questions to keep things going. Stay in character.
 - The learner's goal: ${s.goal} Help them get there naturally, without lecturing.
-- Never correct the learner inside your reply; corrections go in "corrections" only (real errors, not style).`;
+- Never correct the learner inside your reply; corrections go in "corrections" only (real errors, not style).
+How to correct the learner's last message:
+${NATURAL_RULES}`;
 };
 
 const transcript = (c) => {
