@@ -126,6 +126,9 @@ const EXACT = {
   "Delete this text? Saved words stay.": "Supprimer ce texte ? Les mots gardés restent.",
   "Remove this card from reviews? (You can restore it in My data.)": "Retirer cette carte des révisions ? (Tu peux la remettre dans Mes données.)",
   "English": "English", "Français": "Français",
+  "💬 Just talk": "💬 Discuter", "Situations": "Situations",
+  "Chat with Camille about anything. You can also ask questions about French, even in English.": "Discute de tout avec Camille. Tu peux aussi poser des questions sur le français, même en anglais.",
+  "Ask anything about French too, even in English.": "Pose aussi des questions sur le français, même en anglais.",
   // typed answers in review
   "Type the correct version of the highlighted part:": "Écris la bonne version de la partie surlignée :", "I don't know": "Je ne sais pas",
   "Your answer…": "Ta réponse…", "Type what you hear…": "Écris ce que tu entends…", "You wrote:": "Tu as écrit :", "Presque !": "Presque !",

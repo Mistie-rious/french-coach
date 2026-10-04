@@ -21,11 +21,18 @@ export const SCENARIOS = [
   { id: "libre", emoji: "✨", title: "Discussion libre", role: "a warm, curious French friend", setting: "a relaxed chat about anything: your day, plans, interests", goal: "Just talk! Keep the conversation going.", register: "tu" },
 ];
 
-export const scenarioById = (id) => SCENARIOS.find((s) => s.id === id);
+/** Free chat: no scene, no goal; questions about French (in English) are welcome. */
+export const CHAT = {
+  id: "chat", emoji: "💬", title: "Avec Camille", mode: "chat", register: "tu",
+  role: "Camille, a warm, funny French friend in her thirties who lives in Lyon and loves helping people learn French",
+  setting: "a relaxed chat", goal: "",
+};
+
+export const scenarioById = (id) => (id === "chat" ? CHAT : SCENARIOS.find((s) => s.id === id));
 
 /** Start a conversation (no Claude call yet). Returns its id. */
 export function startConversation(scenario, level) {
-  const setup = { role: scenario.role, setting: scenario.setting, goal: scenario.goal, register: scenario.register, emoji: scenario.emoji };
+  const setup = { role: scenario.role, setting: scenario.setting, goal: scenario.goal, register: scenario.register, emoji: scenario.emoji, mode: scenario.mode || "scene" };
   return run("INSERT INTO conversation(scenario, title, setup, level, messages, created_at) VALUES (?,?,?,?,?,?)", [
     scenario.id, scenario.title, JSON.stringify(setup), level, "[]", Date.now(),
   ]);
@@ -63,6 +70,15 @@ const SCHEMA = {
 
 const system = (c) => {
   const s = c.setup;
+  if (s.mode === "chat") {
+    return `You are ${s.role}. You're chatting with an adult French learner at CEFR ${c.level} (${LEVEL_GUIDE[c.level]}).
+- Reply in French at that level, using "tu". Be natural, curious and a bit playful; share your own (invented) life and opinions too.
+- Keep replies short (1-4 sentences) and usually end with a question so the chat keeps going.
+- If the learner asks something ABOUT French (often in English: a word, "how do I say…", a grammar question), answer it clearly and briefly in English first, with a French example, then continue the chat in French.
+- If the learner writes in English for other things, gently answer in simple French and encourage them to try in French.
+- Never correct the learner inside your reply; corrections go in "corrections" only (real errors in their French, not style; ignore English text).
+- goal_done is always false.`;
+  }
   return `You are role-playing ${s.role}. Setting: ${s.setting}.
 You're talking with an adult French learner at CEFR ${c.level} (${LEVEL_GUIDE[c.level]}).
 - Speak only French, in that level's vocabulary and grammar. Address the learner with "${s.register}".

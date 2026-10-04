@@ -500,3 +500,6 @@ table.mini tr:last-child td { border-bottom: 0; }
 .verdict.wrong .score { color: var(--coral); }
 .verdict p { margin: 4px 0; }
 .ratings button.suggest { outline: 3px solid currentColor; outline-offset: 2px; }
+
+.just-talk { border-left: 4px solid var(--purple); }
+.just-talk .compose-row { margin-top: 10px; }

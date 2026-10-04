@@ -420,3 +420,20 @@ test("a card in a short learning step waits behind other due/new cards", async (
   assert.notEqual(q[0].id, first.id); // the other card comes first
   assert.equal(q[1].id, first.id); // the just-rated one is still in today's session
 });
+
+test("free chat: you speak first, tutor prompt allows questions in English", async () => {
+  await fresh();
+  const calls = [];
+  const fake = async ({ system, user }) => {
+    calls.push({ system, user });
+    return { reply: "Bonne question ! On dit « j'en ai marre ». Et toi, tu en as marre de quoi ?", corrections: [], suggestion: "J'en ai marre du travail.", goal_done: false };
+  };
+  const id = talk.startConversation(talk.CHAT, "B1");
+  const c = talk.getConversation(id);
+  assert.equal(c.setup.mode, "chat");
+  await talk.takeTurn(c, "How do I say 'I'm fed up'?", { claude: fake });
+  assert.match(calls[0].system, /Camille/);
+  assert.match(calls[0].system, /in English first/);
+  assert.match(calls[0].user, /Learner: How do I say/);
+  assert.deepEqual(talk.getConversation(id).messages.map((m) => m.role), ["me", "ai"]);
+});

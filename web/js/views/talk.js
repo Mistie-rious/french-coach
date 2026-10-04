@@ -2,12 +2,13 @@ import { all, kvGet, kvSet } from "../db.js";
 import { hasKey } from "../claude.js";
 import { level } from "../content.js";
 import { canSpeak, speak, stopSpeaking } from "../learn.js";
-import { SCENARIOS, allCorrections, endConversation, getConversation, scenarioById, startConversation, takeTurn } from "../talk.js";
+import { CHAT, SCENARIOS, allCorrections, endConversation, getConversation, scenarioById, startConversation, takeTurn } from "../talk.js";
 import { translate } from "../translate.js";
 import { busy, fmtDay, go, html, mark, toast } from "../util.js";
 
 const Recognition = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 const autoplay = () => kvGet("talk_autoplay", true);
+let pendingFirst = null; // first message typed on the Talk page, sent once the chat opens
 
 // ---------- scenario picker ----------
 
@@ -16,6 +17,15 @@ export function talkHome(root) {
   root.innerHTML = html`
     <h1>Parler</h1>
     ${hasKey() ? "" : html`<div class="card warn">Conversations need a Claude key. <a href="#/settings">Add one in Settings →</a></div>`}
+    <div class="card just-talk">
+      <p class="kind">💬 Just talk</p>
+      <p class="small muted">Chat with Camille about anything. You can also ask questions about French, even in English.</p>
+      <div class="row gap compose-row">
+        <textarea id="free" rows="1" placeholder="Salut Camille ! …" autocapitalize="sentences" spellcheck="false"></textarea>
+        <button id="free-go" aria-label="Send">➤</button>
+      </div>
+    </div>
+    <h2>Situations</h2>
     <p class="muted small">Pick a situation. Claude plays the other person at your level (${level()}). Type or speak; corrections are saved for review.</p>
     <div class="scenarios">${SCENARIOS.map((s) => html`
       <button class="scenario" data-s="${s.id}"><span class="emoji">${s.emoji}</span><span>${s.title}</span></button>`)}
@@ -47,6 +57,21 @@ export function talkHome(root) {
       root.querySelector("#custom-text").focus();
     } else begin(scenarioById(b.dataset.s));
   };
+  const free = root.querySelector("#free");
+  const goFree = () => {
+    const text = free.value.trim();
+    if (!text) return free.focus();
+    if (!hasKey()) return toast("Add a Claude key in Settings first");
+    pendingFirst = text;
+    go(`#/talk/${startConversation(CHAT, level())}`);
+  };
+  root.querySelector("#free-go").onclick = goFree;
+  free.onkeydown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      goFree();
+    }
+  };
   root.querySelector("#custom-go").onclick = () => {
     const text = root.querySelector("#custom-text").value.trim();
     if (!text) return;
@@ -66,7 +91,7 @@ export async function talkChat(root, { params: [id] }) {
     <header class="chat-head">
       <a href="#/talk" class="back">← Parler</a>
       <h1>${c.setup.emoji} ${c.title}</h1>
-      <p class="small muted goal">🎯 ${c.setup.goal}</p>
+      ${c.setup.goal ? html`<p class="small muted goal">🎯 ${c.setup.goal}</p>` : html`<p class="small muted goal">Ask anything about French too, even in English.</p>`}
       <label class="small muted autoplay"><input type="checkbox" id="autoplay" ${autoplay() ? "checked" : ""}> Read replies aloud</label>
     </header>
     <div id="chat" class="chat"></div>
@@ -137,7 +162,7 @@ export async function talkChat(root, { params: [id] }) {
       renderMessages();
       const last = c.messages.at(-1);
       if (autoplay() && canSpeak()) speak(last.text);
-      if (last.goalDone && !c.goalToastShown) {
+      if (c.setup.goal && last.goalDone && !c.goalToastShown) {
         c.goalToastShown = true;
         toast("🎯 Goal reached! Keep chatting or tap Finish.", 4000);
       }
@@ -150,7 +175,16 @@ export async function talkChat(root, { params: [id] }) {
   };
 
   renderMessages();
-  if (!c.messages.length && !c.ended_at) turn(null); // Claude opens the scene
+  if (!c.messages.length && !c.ended_at) {
+    if (pendingFirst) {
+      const first = pendingFirst;
+      pendingFirst = null;
+      c.messages.push({ role: "me", text: first });
+      renderMessages();
+      c.messages.pop();
+      turn(first); // you start the chat
+    } else turn(null); // Claude opens the scene
+  }
   if (c.ended_at) showSummary();
 
   const send = () => {
