@@ -540,3 +540,4 @@ table.mini tr:last-child td { border-bottom: 0; }
 .week .goal-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--ink, var(--text)); opacity: 0.45; }
 .week small { font-size: 0.7rem; color: var(--muted); }
 .week .today small { color: var(--text); font-weight: 700; }
+.ask .saved-chip { align-self: flex-start; background: var(--sage-soft, var(--purple-soft)); color: var(--sage, var(--purple)); border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; font-weight: 700; animation: enter 0.2s ease-out; }
