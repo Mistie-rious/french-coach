@@ -252,7 +252,7 @@ export function reader(root, { params: [id] }) {
           <button class="grow" id="save-sentence" ${savedSents.has(sentence) ? "disabled" : ""}>${savedSents.has(sentence) ? "Saved ✓" : "Save sentence"}</button>
           ${hasKey() && !me.explain ? html`<button class="secondary" id="explain">${me.explaining ? "…" : "✦ Explain grammar"}</button>` : ""}
         </div>
-        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask Claude a question</button>` : ""}`);
+        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask a question</button>` : ""}`);
     };
     me.render = render;
     render();
@@ -291,7 +291,7 @@ export function reader(root, { params: [id] }) {
           <button class="wide" id="save-manual">Save</button>`}
         <p class="small muted">${me.en || (me.enError ? "" : "…")}</p>
         ${hasKey() && !g ? html`<button class="secondary wide" id="ask">${me.asking ? "Asking Claude…" : "✦ Ask Claude (meaning in this sentence)"}</button>` : ""}
-        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask Claude a question</button>` : ""}`);
+        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask a question</button>` : ""}`);
     };
     me.render = render;
     render();

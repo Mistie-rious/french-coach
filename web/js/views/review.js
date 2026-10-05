@@ -107,7 +107,7 @@ export default function reviewView(root, { query }) {
         html`<button data-r="${r}" class="r${r}">${label}<small>${fmtInterval(p[r])}</small></button>`)}
     </div>
     <p class="center">
-      ${hasKey() ? html`<button class="link small" id="ask-card">✦ Ask Claude</button> · ` : ""}<button class="link small" id="remove">Remove card</button>
+      ${hasKey() ? html`<button class="link small" id="ask-card">✦ Ask a question</button> · ` : ""}<button class="link small" id="remove">Remove card</button>
     </p>
   `;
 

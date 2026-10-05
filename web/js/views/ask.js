@@ -29,9 +29,9 @@ export function openAsk({ context, label, starters = STARTERS }) {
   const wrap = document.createElement("div");
   wrap.className = "ask-backdrop";
   wrap.innerHTML = html`
-    <section class="ask" role="dialog" aria-label="Ask Claude">
+    <section class="ask" role="dialog" aria-label="Ask a question">
       <header class="row between">
-        <strong>✦ Ask Claude</strong>
+        <strong>✦ Ask a question</strong>
         <button class="link" id="ask-close" aria-label="Close">✕</button>
       </header>
       <p class="ask-ctx small muted">${label}</p>

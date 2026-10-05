@@ -265,7 +265,7 @@ export function lessonView(root, { params: [id] }) {
     <p class="kind">${l.group} · ${l.level}</p>
     <h1>${l.title}</h1>
     <article class="lesson">${raw(l.body)}</article>
-    ${hasKey() ? html`<button class="secondary wide" id="ask-lesson">💬 Ask Claude about this lesson</button>` : ""}
+    ${hasKey() ? html`<button class="secondary wide" id="ask-lesson">💬 Ask about this lesson</button>` : ""}
     ${practiceHref ? html`<a class="button wide" href="${practiceHref}">Practise this →</a>` : ""}
     ${next ? html`<a class="card row between" href="#/learn/tips/${next.id}"><span><small class="muted">Next</small>${next.title}</span><span class="chev">→</span></a>` : ""}`;
   const askBtn = root.querySelector("#ask-lesson");
@@ -364,7 +364,7 @@ export async function addView(root) {
           <button class="grow" id="save">Save to review</button>
           ${hasKey() ? html`<button class="secondary" id="explain">✦ Explain grammar</button>` : ""}
         </div>
-        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask Claude a question</button>` : ""}`;
+        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask a question</button>` : ""}`;
       out.querySelector("#chat")?.addEventListener("click", () => openAsk({
         label: text,
         context: `French sentence: "${text}"\nTranslation: ${out.querySelector("#meaning").value.trim() || en}${notes ? `\nThe app's grammar notes (the learner may find these confusing):\n- ${notes.join("\n- ")}` : ""}`,
