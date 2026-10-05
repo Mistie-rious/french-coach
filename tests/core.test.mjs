@@ -480,7 +480,10 @@ test("translations use Claude when there's a key (cached), MyMemory only as fall
   globalThis.fetch = async (url, opts) => {
     if (String(url).includes("anthropic")) {
       bodies.push(JSON.parse(opts.body));
-      return new Response(JSON.stringify({ stop_reason: "end_turn", usage: { input_tokens: 60, output_tokens: 8 }, content: [{ type: "text", text: JSON.stringify({ translation: "friend, mate; boyfriend" }) }] }));
+      return new Response(JSON.stringify({ stop_reason: "end_turn", usage: { input_tokens: 60, output_tokens: 8 }, content: [{ type: "text", text: JSON.stringify(
+        /avoir le cafard/.test(bodies.at(-1).messages[0].content)
+          ? { fr: "avoir le cafard", en: "to feel down", literal: "to have the cockroach" }
+          : { fr: "copain", en: "friend, mate; boyfriend", literal: "" }) }] }));
     }
     throw new Error("MyMemory must not be called");
   };
@@ -490,6 +493,13 @@ test("translations use Claude when there's a key (cached), MyMemory only as fall
     assert.equal(bodies.length, 1);
     assert.equal(bodies[0].model, "claude-haiku-4-5");
     assert.match(bodies[0].messages[0].content, /common English meaning/);
+    assert.match(bodies[0].messages[0].content, /infinitive/);
+    // longer than two words -> sentence prompt; typos come back fixed, idioms with their literal meaning
+    assert.deepEqual(await translate.translateFull("avoir le cafard"), { fr: "avoir le cafard", en: "to feel down", literal: "to have the cockroach" });
+    assert.match(bodies[1].messages[0].content, /natural English translation/);
+    assert.equal(translate.isShort("à côté"), true);
+    assert.equal(translate.isShort("avoir le cafard"), false);
+    assert.equal(translate.isShort("Salut !"), false);
   } finally {
     globalThis.fetch = realFetch;
     delete globalThis.localStorage;

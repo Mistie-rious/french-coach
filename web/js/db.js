@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS item (
   text_id INTEGER REFERENCES text(id) ON DELETE SET NULL,
   submission_id INTEGER REFERENCES submission(id) ON DELETE CASCADE,
   suspended INTEGER NOT NULL DEFAULT 0,
+  mine INTEGER NOT NULL DEFAULT 0, -- added by hand in "Add your own"
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_item_kind ON item(kind);
@@ -132,7 +133,12 @@ CREATE TABLE IF NOT EXISTS llm_usage (
 /** Additive migrations for databases created by older versions (and old backups). */
 function migrate() {
   const cols = (t) => all(`PRAGMA table_info(${t})`).map((c) => c.name);
-  if (!cols("item").includes("audio")) db.exec("ALTER TABLE item ADD COLUMN audio TEXT"); // JSON {url, author, license, profile}
+  const itemCols = cols("item");
+  if (!itemCols.includes("audio")) db.exec("ALTER TABLE item ADD COLUMN audio TEXT"); // JSON {url, author, license, profile}
+  if (!itemCols.includes("mine")) {
+    db.exec("ALTER TABLE item ADD COLUMN mine INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE item SET mine = 1 WHERE kind IN ('word','sentence') AND text_id IS NULL");
+  }
   const textCols = cols("text");
   if (!textCols.includes("story_id")) db.exec("ALTER TABLE text ADD COLUMN story_id INTEGER REFERENCES story(id) ON DELETE SET NULL");
   if (!textCols.includes("episode")) db.exec("ALTER TABLE text ADD COLUMN episode INTEGER");

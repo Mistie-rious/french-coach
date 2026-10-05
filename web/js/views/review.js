@@ -1,6 +1,6 @@
 import { run } from "../db.js";
 import { previews, queue, review, settings } from "../srs.js";
-import { reviewedToday, todaysMistakeIds } from "../progress.js";
+import { myItemIds, reviewedToday, todaysMistakeIds } from "../progress.js";
 import { fmtInterval, go, html, mark } from "../util.js";
 import { t } from "../i18n.js";
 import { credit, playerHtml, wirePlayer } from "./listen.js";
@@ -12,20 +12,24 @@ import { compare } from "../listen.js";
 
 export default function reviewView(root, { query }) {
   const drill = query.get("drill") === "1";
+  const mine = query.get("mine") === "1";
   const more = query.get("more") === "1";
   const cap = settings().reviewCap;
   const reviewed = reviewedToday();
   const cards = drill
     ? queue(100, { itemIds: todaysMistakeIds() })
+    : mine ? queue(100, { itemIds: myItemIds() })
     : reviewed >= cap && !more ? [] : queue(cap);
-  const self = `#/review${drill ? "?drill=1" : more ? "?more=1" : ""}`;
+  const self = `#/review${drill ? "?drill=1" : mine ? "?mine=1" : more ? "?more=1" : ""}`;
+  const title = drill ? "Drill" : mine ? "My words" : "Review";
   const card = cards[0];
 
   if (!card) {
     root.innerHTML = html`
-      <h1>${drill ? "Drill" : "Review"}</h1>
+      <h1>${title}</h1>
       <div class="card center stack">
         ${drill ? html`<p>No mistakes left to drill today. 👌</p>`
+          : mine ? html`<p>None of your words are due right now. 👌</p><a href="#/learn/add">Add more →</a>`
           : reviewed >= cap && !more ? html`<p>Warm-up done: ${reviewed} cards today.</p><a href="#/review?more=1">Keep going →</a>`
           : html`<p>Nothing due. 🎉</p>`}
         <a href="#/">Back to today</a>
@@ -86,7 +90,7 @@ export default function reviewView(root, { query }) {
 
   root.innerHTML = html`
     <header class="row between">
-      <h1>${drill ? "Drill" : "Review"}</h1>
+      <h1>${title}</h1>
       <span class="pill">${cards.length} left</span>
     </header>
     <div class="card flash" id="flash">${body}</div>

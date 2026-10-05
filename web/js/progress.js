@@ -28,6 +28,8 @@ export function streak(days = activeDays()) {
 export const todaysMistakeIds = () =>
   all("SELECT id FROM item WHERE kind = 'mistake' AND suspended = 0 AND created_at >= ?", [dayStart()]).map((r) => r.id);
 
+export const myItemIds = () => all("SELECT id FROM item WHERE mine = 1 AND suspended = 0").map((r) => r.id);
+
 export const reviewedToday = () => scalar("SELECT COUNT(*) FROM review_log WHERE reviewed_at >= ?", [dayStart()]);
 
 export function backupDue() {

@@ -167,26 +167,32 @@ function displayLemma(lemma, pos, gender) {
  * Save a word as a review item. `g` = {lemma, pos, gender, lemma_meaning, sentence_en?, note?, example_fr?, example_en?}.
  * Returns {itemId, created}.
  */
-export function saveWord({ word, sentence, textId, g }) {
+export function saveWord({ word, sentence, textId, g, mine = false }) {
   const existing = get("SELECT id FROM item WHERE kind = 'word' AND lemma = ?", [g.lemma]);
-  if (existing) return { itemId: existing.id, created: false };
+  if (existing) {
+    if (mine) run("UPDATE item SET mine = 1 WHERE id = ?", [existing.id]);
+    return { itemId: existing.id, created: false };
+  }
   const note = [g.note, g.example_fr && `${g.example_fr} — ${g.example_en}`].filter(Boolean).join(" · ");
   const at = Date.now();
   const itemId = run(
-    "INSERT INTO item(kind, lemma, front, back, context, context_en, note, text_id, created_at) VALUES ('word',?,?,?,?,?,?,?,?)",
-    [g.lemma, displayLemma(g.lemma, g.pos, g.gender), g.lemma_meaning, sentence.replace(word, `[[${word}]]`), g.sentence_en || null, note || null, textId ?? null, at],
+    "INSERT INTO item(kind, lemma, front, back, context, context_en, note, text_id, mine, created_at) VALUES ('word',?,?,?,?,?,?,?,?,?)",
+    [g.lemma, displayLemma(g.lemma, g.pos, g.gender), g.lemma_meaning, sentence.replace(word, `[[${word}]]`), g.sentence_en || null, note || null, textId ?? null, mine ? 1 : 0, at],
   );
   addCard(itemId, "recog", at);
   return { itemId, created: true };
 }
 
 /** Save a whole sentence (French -> English card). */
-export function saveSentence({ sentence, translation, notes, textId }) {
+export function saveSentence({ sentence, translation, notes, textId, mine = false }) {
   const existing = get("SELECT id FROM item WHERE kind = 'sentence' AND front = ?", [sentence]);
-  if (existing) return { itemId: existing.id, created: false };
+  if (existing) {
+    if (mine) run("UPDATE item SET mine = 1 WHERE id = ?", [existing.id]);
+    return { itemId: existing.id, created: false };
+  }
   const at = Date.now();
-  const itemId = run("INSERT INTO item(kind, front, back, note, text_id, created_at) VALUES ('sentence',?,?,?,?,?)", [
-    sentence, translation, notes || null, textId ?? null, at,
+  const itemId = run("INSERT INTO item(kind, front, back, note, text_id, mine, created_at) VALUES ('sentence',?,?,?,?,?,?)", [
+    sentence, translation, notes || null, textId ?? null, mine ? 1 : 0, at,
   ]);
   addCard(itemId, "recog", at);
   return { itemId, created: true };

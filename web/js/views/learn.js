@@ -1,7 +1,7 @@
 import { all, kvGet, kvSet, scalar } from "../db.js";
 import { explainSentence, level, saveSentence, saveWord } from "../content.js";
 import { hasKey } from "../claude.js";
-import { translate } from "../translate.js";
+import { isShort, translateFull } from "../translate.js";
 import {
   TENSES, canSpeak, checkConj, forms, knownCount, learnWord, loadVerbs, markKnown, newWords, promptText,
   question, saveConjMistake, speak, subjectFor, verbByInf, verbLabel, IMPERATIVE_LABELS,
@@ -9,6 +9,7 @@ import {
 import { GROUPS, LESSONS, lessonById } from "../lessons.js";
 import { lemmaCandidates, loadDict, lookup } from "../nlp.js";
 import { queue, settings } from "../srs.js";
+import { myItemIds } from "../progress.js";
 import { busy, fmtDay, go, html, mark, raw, toast } from "../util.js";
 export { speak };
 
@@ -25,12 +26,16 @@ export async function learnHub(root) {
   const due = queue(settings().reviewCap).length;
   const learned = scalar("SELECT COUNT(*) FROM item WHERE kind = 'word'");
   const conjCards = scalar("SELECT COUNT(*) FROM item WHERE kind = 'conj'");
+  const mineIds = myItemIds();
+  const mineDue = mineIds.length ? queue(100, { itemIds: mineIds }).length : 0;
   root.innerHTML = html`
     <h1>Apprendre</h1>
     <a href="#/review" class="card hub c-purple"><span class="hub-icon">↻</span>
       <span class="grow"><strong>Review</strong><small>${due ? `${due} cards due` : "nothing due right now"}</small></span><span class="chev">→</span></a>
     <a href="#/learn/add" class="card hub c-purple"><span class="hub-icon">＋</span>
       <span class="grow"><strong>Add your own</strong><small>Type a French word or sentence, see what it means, save it to review</small></span><span class="chev">→</span></a>
+    ${mineIds.length ? html`<a href="#/review?mine=1" class="card hub c-purple"><span class="hub-icon">★</span>
+      <span class="grow"><strong>Review my words</strong><small>${mineDue ? `${mineDue} of yours to review` : "all caught up"}</small></span><span class="chev">→</span></a>` : ""}
     <a href="#/listen" class="card hub c-sage"><span class="hub-icon">🎧</span>
       <span class="grow"><strong>Listening</strong><small>Dictation with native speakers (Tatoeba)</small></span><span class="chev">→</span></a>
     <a href="#/learn/words" class="card hub c-coral"><span class="hub-icon">✚</span>
@@ -259,8 +264,9 @@ export function lessonView(root, { params: [id] }) {
 // ---------- add your own words & sentences ----------
 
 export async function addView(root) {
-  const recent = all(`SELECT id, kind, front, back, created_at FROM item WHERE kind IN ('word','sentence') AND text_id IS NULL
+  const recent = all(`SELECT id, kind, front, back, created_at FROM item WHERE mine = 1
                       ORDER BY created_at DESC LIMIT 10`);
+  const mineDue = queue(100, { itemIds: myItemIds() }).length;
   root.innerHTML = html`
     <h1>Ajouter</h1>
     <p class="muted small">Type a French word or sentence you've come across. You'll see what it means, then you can save it to your reviews.</p>
@@ -270,6 +276,7 @@ export async function addView(root) {
       <div id="result"></div>
     </div>
     ${recent.length ? html`
+      ${mineDue ? html`<a href="#/review?mine=1" class="button wide">Review my words (${mineDue}) →</a>` : ""}
       <h2>Recently added</h2>
       <ul class="list">${recent.map((r) => html`
         <li class="card"><strong>${r.kind === "word" ? r.front : mark(r.front)}</strong><br><span class="muted">${r.back}</span>
@@ -279,12 +286,16 @@ export async function addView(root) {
   const out = root.querySelector("#result");
   input.focus();
   const run = async () => {
-    const text = input.value.trim().replace(/\s+/g, " ");
-    if (!text) return input.focus();
-    const isWord = text.split(" ").length <= 2 && !/[.!?]$/.test(text);
+    const typed = input.value.trim().replace(/\s+/g, " ");
+    if (!typed) return input.focus();
     out.innerHTML = html`<p class="loading small">Translating</p>`;
-    let en = "";
-    try { en = await translate(text); } catch (e) { toast(e.message, 4000); }
+    let t = { fr: typed, en: "", literal: "" };
+    try { t = await translateFull(typed); } catch (e) { toast(e.message, 4000); }
+    const text = t.fr, en = t.en, literal = t.literal;
+    const isWord = isShort(text);
+    // shown above the meaning: the spelling fix (if any) and the idiom's literal meaning (also saved on the card)
+    const extra = html`${text !== typed ? html`<p class="small muted">Corrected from « ${typed} »</p>` : ""}
+      ${literal ? html`<p class="small muted">Literally: ${literal}</p>` : ""}`;
 
     if (isWord) {
       await loadDict().catch(() => {});
@@ -292,6 +303,7 @@ export async function addView(root) {
       const first = entries[0];
       out.innerHTML = html`
         <p class="big">${text} <button class="say" data-say="${text}">🔊</button></p>
+        ${extra}
         <label class="small muted">Meaning to learn<input id="meaning" value="${en || (first ? first.gloss.split(/;\s*/).slice(0, 2).join("; ") : "")}"></label>
         ${entries.length ? html`<p class="small muted">Dictionary (tap one to use it):</p>
           <ul class="dict pick">${entries.map((d) => html`
@@ -307,7 +319,9 @@ export async function addView(root) {
         const lemma = first?.lemma || lemmaCandidates(text)[0] || text.toLowerCase();
         const res = saveWord({
           word: text, sentence: first?.ex_fr || "", textId: null,
-          g: { lemma, pos: first?.pos || "", gender: first?.gender || "", lemma_meaning: meaning, sentence_en: first?.ex_en || null },
+          mine: true,
+          g: { lemma, pos: first?.pos || "", gender: first?.gender || "", lemma_meaning: meaning, sentence_en: first?.ex_en || null,
+               note: literal && `Literally: ${literal}` },
         });
         e.target.disabled = true;
         e.target.textContent = res.created ? "Saved ✓" : "Already saved ✓";
@@ -315,6 +329,7 @@ export async function addView(root) {
     } else {
       out.innerHTML = html`
         <p class="context">${text} <button class="say" data-say="${text}">🔊</button></p>
+        ${extra}
         <label class="small muted">Translation<textarea id="meaning" rows="2">${en}</textarea></label>
         <div id="notes"></div>
         <div class="row gap">
@@ -332,7 +347,7 @@ export async function addView(root) {
       out.querySelector("#save").onclick = (e) => {
         const translation = out.querySelector("#meaning").value.trim();
         if (!translation) return toast("Add a translation first");
-        const res = saveSentence({ sentence: text, translation, notes: notes?.join(" · "), textId: null });
+        const res = saveSentence({ sentence: text, translation, notes: [literal && `Literally: ${literal}`, ...(notes || [])].filter(Boolean).join(" · "), textId: null, mine: true });
         e.target.disabled = true;
         e.target.textContent = res.created ? "Saved ✓" : "Already saved ✓";
       };
