@@ -527,3 +527,16 @@ table.mini tr:last-child td { border-bottom: 0; }
 .typing-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
 .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Claude usage per day ── */
+#screentime .over { color: var(--coral); }
+.track.goal { height: 12px; }
+.track.goal.over span, .week .fill.over { background: var(--coral); }
+.track.goal span { background: var(--sage); }
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.week .day { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.week .col { position: relative; width: 100%; height: 64px; display: flex; align-items: flex-end; border-radius: 8px; background: var(--line); overflow: hidden; }
+.week .fill { display: block; width: 100%; background: var(--purple); border-radius: 8px 8px 0 0; }
+.week .goal-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--ink, var(--text)); opacity: 0.45; }
+.week small { font-size: 0.7rem; color: var(--muted); }
+.week .today small { color: var(--text); font-weight: 700; }

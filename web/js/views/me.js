@@ -1,5 +1,5 @@
 import { all, exportBytes, importBytes, kvGet, kvSet, run, saveNow } from "../db.js";
-import { getKey, setKey, structured, usageSince } from "../claude.js";
+import { dailyGoal, getKey, setDailyGoal, setKey, structured, usageByDay, usageSince } from "../claude.js";
 import { LEVELS } from "../content.js";
 import { setUiLang, t, uiLang } from "../i18n.js";
 import { stats as getStats } from "../progress.js";
@@ -189,6 +189,11 @@ export function settingsView(root) {
   const now = new Date();
   const month = usageSince(new Date(now.getFullYear(), now.getMonth(), 1).getTime());
   const money = (x) => (x < 0.01 && x > 0 ? "<$0.01" : `$${x.toFixed(2)}`);
+  const week = usageByDay(7);
+  const today = week[week.length - 1];
+  const goal = dailyGoal();
+  const peak = Math.max(goal, ...week.map((d) => d.cost), 0.01);
+  const dayName = (d) => new Date(`${d.date}T12:00`).toLocaleDateString(undefined, { weekday: "short" });
   root.innerHTML = html`
     <h1>Settings</h1>
     <div class="card stack">
@@ -218,6 +223,20 @@ export function settingsView(root) {
       <label>Warm-up review size<input id="cap" type="number" min="5" max="200" value="${kvGet("review_cap", 20)}"></label>
       <label>New cards per day<input id="newpd" type="number" min="0" max="100" value="${kvGet("new_per_day", 15)}"></label>
       <button id="save-prefs">Save</button>
+    </div>
+    <div class="card stack" id="screentime">
+      <div class="row between"><strong>Claude today</strong><strong class="${goal && today.cost >= goal ? "over" : "accent"}">${money(today.cost)}${goal ? html` <span class="muted small">/ ${money(goal)}</span>` : ""}</strong></div>
+      <p class="small muted">${today.calls} call${today.calls === 1 ? "" : "s"} · ${today.tokens.toLocaleString()} tokens</p>
+      ${goal ? html`<div class="track goal ${today.cost >= goal ? "over" : ""}"><span style="width:${Math.min(100, Math.round((100 * today.cost) / goal))}%"></span></div>` : ""}
+      <div class="week">${week.map((d) => html`
+        <div class="day ${d === today ? "today" : ""}" title="${d.date}: ${money(d.cost)}, ${d.calls} calls">
+          <span class="col"><span class="fill ${goal && d.cost >= goal ? "over" : ""}" style="height:${d.cost ? Math.max(4, Math.round((100 * d.cost) / peak)) : 0}%"></span>${goal ? html`<i class="goal-line" style="bottom:${Math.round((100 * goal) / peak)}%"></i>` : ""}</span>
+          <small>${dayName(d)}</small>
+        </div>`)}</div>
+      <label>Daily goal (USD, 0 = none)
+        <input id="goal" type="number" min="0" step="0.05" inputmode="decimal" value="${goal || ""}" placeholder="e.g. 0.10">
+      </label>
+      <button id="save-goal" class="secondary">Save goal</button>
     </div>
     <div class="card stack">
       <div class="row between"><strong>Claude this month</strong><strong class="accent">${money(month.total)}</strong></div>
@@ -264,6 +283,11 @@ export function settingsView(root) {
   root.querySelector("#save-mm").onclick = () => {
     kvSet("mymemory_email", root.querySelector("#mm-email").value.trim());
     toast("Saved ✓");
+  };
+  root.querySelector("#save-goal").onclick = () => {
+    setDailyGoal(root.querySelector("#goal").value);
+    toast("Goal saved ✓");
+    go("#/settings");
   };
   root.querySelector("#save-prefs").onclick = () => {
     kvSet("level", root.querySelector("#level").value);
