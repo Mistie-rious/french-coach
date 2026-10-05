@@ -3,7 +3,7 @@ import { explainSentence, level, saveSentence, saveWord } from "../content.js";
 import { hasKey } from "../claude.js";
 import { isShort, translateFull } from "../translate.js";
 import {
-  TENSES, canSpeak, checkConj, forms, knownCount, learnWord, loadVerbs, markKnown, newWords, promptText,
+  TENSES, canSpeak, checkConj, findVerbs, forms, knownCount, learnWord, loadVerbs, markKnown, newWords, promptText,
   question, saveConjMistake, speak, subjectFor, verbByInf, verbLabel, IMPERATIVE_LABELS,
 } from "../learn.js";
 import { GROUPS, LESSONS, lessonById } from "../lessons.js";
@@ -128,6 +128,12 @@ export async function verbsView(root, { query }) {
       <h1>Conjugaison</h1>
       <span class="pill">🔥 ${streakRun} in a row</span>
     </header>
+    <form id="find" class="row gap">
+      <input id="verb-q" class="grow" list="verb-list" placeholder="Look up a verb: aller, suis, se lever…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button>Table</button>
+    </form>
+    <datalist id="verb-list">${verbs.map((v) => html`<option value="${verbLabel(v)}">`)}</datalist>
+    <div id="found"></div>
     <div class="chips" id="tenses">${Object.entries(TENSES).map(([k, label]) =>
       html`<button class="chip ${tenses.includes(k) ? "on" : ""}" data-t="${k}">${label}</button>`)}</div>
     <div class="row gap small">
@@ -150,7 +156,7 @@ export async function verbsView(root, { query }) {
         </div>
         <div id="result"></div>
       </div>
-      <a class="small" href="#/learn/verb/${encodeURIComponent(q.verb.inf)}">See the full table for ${verbLabel(q.verb)} →</a>`
+      <a class="small" href="#/learn/verb/${encodeURIComponent(verbLabel(q.verb))}">See the full table for ${verbLabel(q.verb)} →</a>`
       : html`<div class="card">Pick at least one tense.</div>`}`;
 
   // Keep the verb filter (?verbs= / ?reflexive=) but let the saved tenses take over.
@@ -167,6 +173,17 @@ export async function verbsView(root, { query }) {
     go(base());
   };
   root.querySelectorAll("[data-set]").forEach((b) => (b.onclick = () => { kvSet("conj_set", b.dataset.set); go(base()); }));
+  root.querySelector("#find").onsubmit = (e) => {
+    e.preventDefault();
+    const typed = root.querySelector("#verb-q").value.trim();
+    if (!typed) return;
+    const found = findVerbs(typed);
+    if (found.length === 1) return go(`#/learn/verb/${encodeURIComponent(verbLabel(found[0]))}`);
+    root.querySelector("#found").innerHTML = found.length
+      ? html`<ul class="list">${found.map((v) => html`<li><a class="card row between gap" href="#/learn/verb/${encodeURIComponent(verbLabel(v))}">
+          <span class="grow"><strong>${verbLabel(v)}</strong> <small class="muted inline">${short(v.gloss)}</small></span><span class="chev">→</span></a></li>`)}</ul>`
+      : html`<p class="small muted">Not among the ${verbs.length} verbs here.</p>`;
+  };
   if (!q) return;
 
   const input = root.querySelector("#answer");
@@ -202,8 +219,9 @@ export async function verbsView(root, { query }) {
 }
 
 export async function verbTable(root, { params: [inf] }) {
-  await loadVerbs();
-  const v = verbByInf(decodeURIComponent(inf));
+  // by label ("se lever"), so reflexive verbs get their own table; plain infinitives still work
+  const name = decodeURIComponent(inf);
+  const v = (await loadVerbs()).find((x) => verbLabel(x) === name) || verbByInf(name);
   if (!v) return go("#/learn/verbs");
   root.innerHTML = html`
     <h1>${verbLabel(v)}</h1>

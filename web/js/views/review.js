@@ -63,16 +63,15 @@ export default function reviewView(root, { query }) {
     : card.kind === "sentence"
     ? html`
         <p class="kind">sentence · translate it</p>
-        <p class="context">${card.front}</p>
+        <p class="context">${card.front} ${say(card.front)}</p>
         <div class="answer">
           <p class="context accent">${card.back}</p>
-          ${say(card.front)}
           ${card.note ? html`<p class="note">${card.note}</p>` : ""}
         </div>`
     : card.kind === "word"
     ? html`
         <p class="kind">word</p>
-        ${card.context ? html`<p class="context">${mark(card.context)}</p>` : html`<p class="big">${card.front}</p>`}
+        ${card.context ? html`<p class="context">${mark(card.context)} ${say(card.context)}</p>` : html`<p class="big">${card.front} ${say(card.front.replace(/ \([mf]\)$/, ""))}</p>`}
         <div class="answer">
           <p class="big">${card.front} ${say(card.front.replace(/ \([mf]\)$/, ""))}</p>
           <p class="big accent">${card.back}</p>
@@ -84,7 +83,7 @@ export default function reviewView(root, { query }) {
         <p class="context">${mark(card.front)}</p>
         <p class="small muted">Type the correct version of the highlighted part:</p>
         <div class="answer">
-          <p class="context good">${mark(card.back)}</p>
+          <p class="context good">${mark(card.back)} ${say(card.back)}</p>
           ${card.note ? html`<p class="note">${card.note}</p>` : ""}
         </div>`;
 

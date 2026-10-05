@@ -98,6 +98,18 @@ export const promptText = (q) =>
   q.tense === "imperatif" ? `${IMPERATIVE_LABELS[q.person]}` : SUBJECTS[q.person];
 export const verbLabel = (v) => (v.reflexive ? (VOWEL.test(v.inf) ? `s'${v.inf}` : `se ${v.inf}`) : v.inf);
 
+const PRONOUN = /^(se |s'|je |j'|tu |il |elle |on |nous |vous |ils |elles )/;
+
+/** Verbs matching what was typed: an infinitive ("etre", "se lever") or any conjugated form ("suis" -> être, suivre). */
+export function findVerbs(typed) {
+  const refl = /^(se |s')/.test(bare(typed));
+  const q = bare(typed).replace(PRONOUN, "");
+  if (!q || !verbs) return [];
+  const exact = verbs.filter((v) => bare(v.inf) === q);
+  if (exact.length) return exact.length > 1 && exact.some((v) => !!v.reflexive === refl) ? exact.filter((v) => !!v.reflexive === refl) : exact;
+  return verbs.filter((v) => bare(v.pp) === q || Object.values(v.t).some((f) => f.some((x) => x && bare(x) === q)));
+}
+
 /** A missed conjugation becomes a review card ("nous · aller · imparfait" -> "nous allions"). */
 export function saveConjMistake(q) {
   const front = `${verbLabel(q.verb)} · ${TENSES[q.tense]} · ${promptText(q)}`;

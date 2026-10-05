@@ -257,6 +257,16 @@ test("every Claude call uses Haiku and is counted in the cost meter", async () =
 const learn = await import("../web/js/learn.js");
 const VERBS = JSON.parse(readFileSync(new URL("../web/dict/verbs.json", import.meta.url)));
 learn.setVerbs(VERBS);
+test("verb lookup: infinitive (accents optional), reflexive, or any conjugated form", () => {
+  const labels = (q) => learn.findVerbs(q).map(learn.verbLabel);
+  assert.deepEqual(labels("etre"), ["être"]);
+  assert.deepEqual(labels("se lever"), ["se lever"]);
+  assert.deepEqual(labels("lever"), ["lever"]);
+  assert.deepEqual(labels("suis").sort(), ["suivre", "être"].sort());
+  assert.ok(labels("nous allions").includes("aller"));
+  assert.deepEqual(labels("blorp"), []);
+});
+
 const V = (inf, refl = false) => VERBS.find((v) => v.inf === inf && !!v.reflexive === refl);
 const line = (inf, tense, person, refl = false) => {
   const v = V(inf, refl);
