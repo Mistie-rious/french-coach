@@ -1,6 +1,6 @@
 // Offline support: serve app files from cache, refresh them in the background
 // (stale-while-revalidate), so updates show up on the next launch.
-const CACHE = "fc-v19";
+const CACHE = "fc-v20";
 const FILES = [
   "./", "index.html", "app.css", "manifest.webmanifest",
   "js/app.js", "js/util.js", "js/db.js", "js/srs.js", "js/nlp.js", "js/claude.js", "js/correction.js",
@@ -14,7 +14,8 @@ const FILES = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));
+  // cache: "reload" skips the browser's HTTP cache (GitHub Pages allows 10 min), so an update never stores old files
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: "reload" })))));
   self.skipWaiting();
 });
 
@@ -29,7 +30,7 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const hit = await cache.match(e.request, { ignoreSearch: true });
-      const fresh = fetch(e.request)
+      const fresh = fetch(e.request, { cache: "no-cache" })
         .then((resp) => {
           if (resp.ok) cache.put(e.request, resp.clone());
           return resp;
