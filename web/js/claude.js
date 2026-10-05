@@ -64,6 +64,19 @@ export async function structured({ system, user, schema, purpose = "other", maxT
   }
 }
 
+/** Multi-turn free-text reply (for the Ask Claude chat). `messages` is [{role: "user"|"assistant", content}]. */
+export async function converse({ system, messages, purpose = "ask", maxTokens = 900 }) {
+  const key = getKey();
+  if (!key) throw new ClaudeError("No Claude API key (add one in Settings)");
+  const { resp, data } = await send(key, { model: MODEL, max_tokens: maxTokens, system, messages });
+  if (!resp.ok) throw new ClaudeError(`Claude API ${resp.status}: ${data?.error?.message || resp.statusText}`);
+  if (data.usage) logUsage(purpose, data.usage);
+  if (data.stop_reason === "refusal") throw new ClaudeError("Claude declined this request");
+  const text = data.content?.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  if (!text) throw new ClaudeError("Claude returned an empty answer");
+  return text;
+}
+
 async function send(key, body) {
   let resp;
   try {

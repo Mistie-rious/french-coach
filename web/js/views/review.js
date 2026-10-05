@@ -9,6 +9,7 @@ import { judgeFix } from "../correction.js";
 import { hasKey } from "../claude.js";
 import { level } from "../content.js";
 import { compare } from "../listen.js";
+import { openAsk } from "./ask.js";
 
 export default function reviewView(root, { query }) {
   const drill = query.get("drill") === "1";
@@ -105,7 +106,9 @@ export default function reviewView(root, { query }) {
       ${[["Again", 1], ["Hard", 2], ["Good", 3], ["Easy", 4]].map(([label, r]) =>
         html`<button data-r="${r}" class="r${r}">${label}<small>${fmtInterval(p[r])}</small></button>`)}
     </div>
-    <p class="center"><button class="link small" id="remove">Remove card</button></p>
+    <p class="center">
+      ${hasKey() ? html`<button class="link small" id="ask-card">✦ Ask Claude</button> · ` : ""}<button class="link small" id="remove">Remove card</button>
+    </p>
   `;
 
   const flash = root.querySelector("#flash");
@@ -189,6 +192,21 @@ export default function reviewView(root, { query }) {
     const b = e.target.closest("button[data-r]");
     if (b) rate(Number(b.dataset.r));
   };
+  const askCard = root.querySelector("#ask-card");
+  if (askCard) askCard.onclick = () => {
+    // Don't give away the answer to the learner by accident: the chat is for after (or instead of) revealing,
+    // and Claude is told which side the learner has seen.
+    const seen = flash.classList.contains("revealed") ? "has already seen the answer" : "has NOT revealed the answer yet; explain without just giving it away unless asked";
+    const lines = [
+      `Flashcard type: ${card.kind}`,
+      card.context ? `Sentence: ${card.context.replace(/\[\[|\]\]/g, "")}${card.context_en ? ` (${card.context_en})` : ""}` : "",
+      `Front: ${card.front.replace(/\[\[|\]\]/g, "")}`,
+      `Back (answer): ${card.back.replace(/\[\[|\]\]/g, "")}`,
+      card.note ? `Card note: ${card.note}` : "",
+      `The learner ${seen}.`,
+    ].filter(Boolean);
+    openAsk({ label: card.front.replace(/\[\[|\]\]/g, ""), context: lines.join("\n") });
+  };
   root.querySelector("#remove").onclick = () => {
     if (!confirm(t("Remove this card from reviews? (You can restore it in My data.)"))) return;
     run("UPDATE item SET suspended = 1 WHERE id = ?", [card.item_id]);
@@ -196,7 +214,7 @@ export default function reviewView(root, { query }) {
   };
   document.onkeydown = (e) => {
     if (!location.hash.startsWith("#/review")) return (document.onkeydown = null);
-    if (e.target === typed) return;
+    if (e.target.closest?.("input, textarea")) return;
     if (e.key === " " && !show.hidden) { e.preventDefault(); reveal(); }
     else if (e.key === "Enter" && suggested) rate(suggested);
     else if ("1234".includes(e.key) && show.hidden) rate(Number(e.key));

@@ -10,6 +10,7 @@ import { GROUPS, LESSONS, lessonById } from "../lessons.js";
 import { lemmaCandidates, loadDict, lookup } from "../nlp.js";
 import { queue, settings } from "../srs.js";
 import { myItemIds } from "../progress.js";
+import { openAsk } from "./ask.js";
 import { busy, fmtDay, go, html, mark, raw, toast } from "../util.js";
 export { speak };
 
@@ -264,8 +265,17 @@ export function lessonView(root, { params: [id] }) {
     <p class="kind">${l.group} · ${l.level}</p>
     <h1>${l.title}</h1>
     <article class="lesson">${raw(l.body)}</article>
+    ${hasKey() ? html`<button class="secondary wide" id="ask-lesson">💬 Ask Claude about this lesson</button>` : ""}
     ${practiceHref ? html`<a class="button wide" href="${practiceHref}">Practise this →</a>` : ""}
     ${next ? html`<a class="card row between" href="#/learn/tips/${next.id}"><span><small class="muted">Next</small>${next.title}</span><span class="chev">→</span></a>` : ""}`;
+  const askBtn = root.querySelector("#ask-lesson");
+  if (askBtn) {
+    askBtn.onclick = () => openAsk({
+      label: l.title,
+      context: `Lesson "${l.title}" (${l.group}, ${l.level}):\n${root.querySelector(".lesson").innerText}`,
+      starters: ["Explain this more simply", "Can you quiz me?", "Give me more examples"],
+    });
+  }
   // 🔊 on every example line
   if (canSpeak()) {
     root.querySelectorAll(".lesson .ex").forEach((p) => {
@@ -353,7 +363,12 @@ export async function addView(root) {
         <div class="row gap">
           <button class="grow" id="save">Save to review</button>
           ${hasKey() ? html`<button class="secondary" id="explain">✦ Explain grammar</button>` : ""}
-        </div>`;
+        </div>
+        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask Claude a question</button>` : ""}`;
+      out.querySelector("#chat")?.addEventListener("click", () => openAsk({
+        label: text,
+        context: `French sentence: "${text}"\nTranslation: ${out.querySelector("#meaning").value.trim() || en}${notes ? `\nThe app's grammar notes (the learner may find these confusing):\n- ${notes.join("\n- ")}` : ""}`,
+      }));
       let notes = null;
       out.querySelector("#explain")?.addEventListener("click", (e) => busy(e.target, "…", async () => {
         const r = await explainSentence(text);

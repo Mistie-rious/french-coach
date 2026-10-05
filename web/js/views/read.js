@@ -10,6 +10,7 @@ import { GENRES, currentStory, endStory, episodes, nextEpisode, startStory, stor
 import { t } from "../i18n.js";
 import { canSpeak, speakSequence, stopSpeaking } from "../learn.js";
 import { busy, esc, fmtDay, go, html, raw, toast } from "../util.js";
+import { openAsk } from "./ask.js";
 
 const LENGTH_LABELS = { short: "Short", medium: "Medium", long: "Long" };
 
@@ -250,7 +251,8 @@ export function reader(root, { params: [id] }) {
         <div class="row gap">
           <button class="grow" id="save-sentence" ${savedSents.has(sentence) ? "disabled" : ""}>${savedSents.has(sentence) ? "Saved ✓" : "Save sentence"}</button>
           ${hasKey() && !me.explain ? html`<button class="secondary" id="explain">${me.explaining ? "…" : "✦ Explain grammar"}</button>` : ""}
-        </div>`);
+        </div>
+        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask Claude a question</button>` : ""}`);
     };
     me.render = render;
     render();
@@ -288,7 +290,8 @@ export function reader(root, { params: [id] }) {
           <input id="m-meaning" placeholder="meaning in English">
           <button class="wide" id="save-manual">Save</button>`}
         <p class="small muted">${me.en || (me.enError ? "" : "…")}</p>
-        ${hasKey() && !g ? html`<button class="secondary wide" id="ask">${me.asking ? "Asking Claude…" : "✦ Ask Claude (meaning in this sentence)"}</button>` : ""}`);
+        ${hasKey() && !g ? html`<button class="secondary wide" id="ask">${me.asking ? "Asking Claude…" : "✦ Ask Claude (meaning in this sentence)"}</button>` : ""}
+        ${hasKey() ? html`<button class="secondary wide" id="chat">💬 Ask Claude a question</button>` : ""}`);
     };
     me.render = render;
     render();
@@ -299,6 +302,18 @@ export function reader(root, { params: [id] }) {
     const b = e.target.closest("button");
     if (!b || !current) return;
     const me = current;
+    if (b.id === "chat") {
+      return me.kind === "word"
+        ? openAsk({
+            label: `${me.word} · in “${me.sentence}”`,
+            context: `The learner tapped the French word "${me.word}" in this sentence: "${me.sentence}"${me.en ? ` (translation: ${me.en})` : ""}.${me.gloss ? ` The app's gloss: ${me.gloss.lemma} (${me.gloss.pos}) = ${me.gloss.lemma_meaning}.` : ""}`,
+            starters: ["What does it mean here?", "How is it used?", "Give me more examples"],
+          })
+        : openAsk({
+            label: me.sentence,
+            context: `French sentence: "${me.sentence}"${me.en || me.explain ? `\nTranslation: ${me.en || me.explain.translation}` : ""}${me.explain ? `\nThe app's grammar notes (the learner may find these confusing):\n- ${me.explain.notes.join("\n- ")}` : ""}`,
+          });
+    }
     if (b.id === "explain") {
       if (me.explaining) return;
       me.explaining = true;
