@@ -1,7 +1,6 @@
 // Direct browser calls to the Claude API with structured JSON output.
 // The API key lives only in this device's localStorage — never in the code or the backup file.
-import { all, kvGet, kvSet, run } from "./db.js";
-import { dayStart, localDate, toast } from "./util.js";
+import { all, run } from "./db.js";
 
 const KEY = "anthropic_api_key";
 export const MODEL = "claude-haiku-4-5";
@@ -112,7 +111,6 @@ function logUsage(purpose, u) {
     run("INSERT INTO llm_usage(purpose, model, input_tokens, output_tokens, created_at) VALUES (?,?,?,?,?)", [
       purpose, MODEL, (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0), u.output_tokens || 0, Date.now(),
     ]);
-    nudgeIfOverGoal();
   } catch (e) {
     console.warn("usage log failed", e);
   }
@@ -126,40 +124,4 @@ export function usageSince(since) {
     [since],
   ).map((r) => ({ purpose: r.purpose, calls: r.calls, cost: r.inp * PRICE.input + r.outp * PRICE.output }));
   return { rows, total: rows.reduce((s, r) => s + r.cost, 0) };
-}
-
-// ---------- daily usage + goal ----------
-
-/** Daily spend goal in USD (0 = none). */
-export const dailyGoal = () => Number(kvGet("claude_daily_goal", 0)) || 0;
-export const setDailyGoal = (usd) => kvSet("claude_daily_goal", Math.max(0, Number(usd) || 0));
-
-/** Last `days` days (oldest first, ending today): [{date, calls, tokens, cost}], in the phone's local time. */
-export function usageByDay(days = 7) {
-  const start = dayStart(Date.now() - (days - 1) * 86400000 - 3600000 * 2); // pad for DST, trimmed below
-  const out = new Map();
-  for (let i = days - 1; i >= 0; i--) {
-    const date = localDate(Date.now() - i * 86400000);
-    out.set(date, { date, calls: 0, tokens: 0, cost: 0 });
-  }
-  for (const r of all("SELECT input_tokens AS inp, output_tokens AS outp, created_at FROM llm_usage WHERE created_at >= ?", [start])) {
-    const d = out.get(localDate(r.created_at));
-    if (!d) continue;
-    d.calls++;
-    d.tokens += r.inp + r.outp;
-    d.cost += r.inp * PRICE.input + r.outp * PRICE.output;
-  }
-  return [...out.values()];
-}
-
-/** One gentle toast per day, the first time today's spend passes the goal. */
-function nudgeIfOverGoal() {
-  const goal = dailyGoal();
-  if (!goal) return;
-  const today = localDate();
-  if (kvGet("claude_goal_nudged") === today) return;
-  const spent = usageByDay(1)[0].cost;
-  if (spent < goal) return;
-  kvSet("claude_goal_nudged", today);
-  toast(`You've hit today's Claude goal ($${goal.toFixed(2)}) 🎯`, 5000);
 }

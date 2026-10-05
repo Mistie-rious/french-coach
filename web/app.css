@@ -528,16 +528,17 @@ table.mini tr:last-child td { border-bottom: 0; }
 .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 
-/* ── Claude usage per day ── */
-#screentime .over { color: var(--coral); }
+/* ── Screen time ── */
+#screentime .reached { color: var(--sage); }
 .track.goal { height: 12px; }
-.track.goal.over span, .week .fill.over { background: var(--coral); }
-.track.goal span { background: var(--sage); }
+.track.goal span { background: var(--purple); }
+.track.goal.reached span, .week .fill.reached { background: var(--sage); }
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .week .day { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .week .col { position: relative; width: 100%; height: 64px; display: flex; align-items: flex-end; border-radius: 8px; background: var(--line); overflow: hidden; }
 .week .fill { display: block; width: 100%; background: var(--purple); border-radius: 8px 8px 0 0; }
 .week .goal-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--ink, var(--text)); opacity: 0.45; }
 .week small { font-size: 0.7rem; color: var(--muted); }
+.week .val { min-height: 1em; font-weight: 700; }
 .week .today small { color: var(--text); font-weight: 700; }
 .ask .saved-chip { align-self: flex-start; background: var(--sage-soft, var(--purple-soft)); color: var(--sage, var(--purple)); border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; font-weight: 700; animation: enter 0.2s ease-out; }

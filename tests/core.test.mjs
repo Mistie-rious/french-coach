@@ -515,3 +515,17 @@ test("translations use Claude when there's a key (cached), MyMemory only as fall
     delete globalThis.localStorage;
   }
 });
+
+test("screen time: adds seconds per day, prunes old days, formats durations", async () => {
+  const st = await import("../web/js/screentime.js");
+  let m = st.addSeconds({}, "2026-01-01", 10);
+  m = st.addSeconds(m, "2026-01-01", 5);
+  assert.equal(m["2026-01-01"], 15);
+  let big = {};
+  for (let i = 1; i <= 70; i++) big = st.addSeconds(big, `2026-01-${String(i).padStart(2, "0")}`, 1);
+  assert.equal(Object.keys(big).length, 60);
+  assert.equal(st.fmtDuration(0), "0m");
+  assert.equal(st.fmtDuration(20), "<1m");
+  assert.equal(st.fmtDuration(23 * 60 + 5), "23m");
+  assert.equal(st.fmtDuration(65 * 60), "1h 05m");
+});
